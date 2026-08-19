@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>JK BOTINAS | Painel Administrativo</title>
+
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+
+<!-- ================= LOGIN ================= -->
+
+<div class="admin-login-screen" id="loginScreen">
+
+    <div class="admin-login-box">
+
+        <h2>Painel Administrativo</h2>
+
+        <p class="admin-login-sub">JK Botinas</p>
+
+        <input
+            type="email"
+            id="loginEmail"
+            placeholder="E-mail"
+        >
+
+        <input
+            type="password"
+            id="loginPassword"
+            placeholder="Senha"
+        >
+
+        <button class="btn" onclick="fazerLogin()">
+            Entrar
+        </button>
+
+        <p class="admin-login-error" id="loginError"></p>
+
+    </div>
+
+</div>
+
+
+<!-- ================= PAINEL ================= -->
+
+<div class="admin-panel" id="adminPanel" style="display:none">
+
+    <header class="admin-header">
+
+        <h1>Painel Administrativo — JK Botinas</h1>
+
+        <button class="btn btn-outline" onclick="fazerLogout()">
+            Sair
+        </button>
+
+    </header>
+
+
+    <main class="admin-content">
+
+        <h2>Estoque de produtos</h2>
+
+        <p class="admin-hint">
+            Altere a quantidade e clique em "Salvar" na linha do produto.
+        </p>
+
+        <table class="admin-table" id="adminTable">
+
+            <thead>
+                <tr>
+                    <th>Produto</th>
+                    <th>Categoria</th>
+                    <th>Preço</th>
+                    <th>Estoque</th>
+                    <th></th>
+                </tr>
+            </thead>
+
+            <tbody id="adminTableBody">
+                <tr>
+                    <td colspan="5">Carregando produtos...</td>
+                </tr>
+            </tbody>
+
+        </table>
+
+    </main>
+
+</div>
+
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-config.js"></script>
+<script src="admin.js"></script>
+
+</body>
+</html>

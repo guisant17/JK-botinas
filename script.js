@@ -1,11 +1,7 @@
-/* ================= SUPABASE ================= */
+/* ================= PRODUTOS ================= */
 
-    // URL e chave do projeto (Settings > API Keys no painel do Supabase)
-    const SUPABASE_URL = "https://kvhckfdadnlzrstphbhe.supabase.co";
-    const SUPABASE_KEY = "sb_publishable_7MxoYVX-eRI8CGa1S34qqQ_ZRphLbkR";
-
-    // "supabase" aqui é o objeto global que vem do CDN carregado no HTML
-    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    // (A conexão com o Supabase agora vem de supabase-config.js,
+    // carregado antes deste arquivo no index.html)
 
 
     // Emoji de placeholder por categoria (até termos fotos reais)
@@ -98,7 +94,7 @@
                     </div>
                     <button
                         class="add-cart"
-                        onclick="addToCart('${produto.nome}', ${produto.preco})"
+                        onclick="addToCart('${produto.id}', '${produto.nome}', ${produto.preco})"
                         ${esgotado ? "disabled style=\"opacity:.4;cursor:not-allowed\"" : ""}
                     >
                         ${esgotado ? "Esgotado" : "Adicionar ao carrinho"}
@@ -115,10 +111,10 @@
     let cart = [];
 
 
-    function addToCart(name, price) {
+    function addToCart(id, name, price) {
 
         const existing = cart.find(
-            item => item.name === name
+            item => item.id === id
         );
 
         if (existing) {
@@ -128,6 +124,7 @@
         } else {
 
             cart.push({
+                id: id,
                 name: name,
                 price: price,
                 quantity: 1
@@ -272,11 +269,36 @@
 
     /* ================= WHATSAPP ================= */
 
-    function checkoutWhatsApp() {
+    async function checkoutWhatsApp() {
 
         if (cart.length === 0) {
 
             alert("Seu carrinho está vazio!");
+
+            return;
+
+        }
+
+
+        // Abate o estoque de cada item no banco antes de finalizar o pedido
+        const baixasDeEstoque = cart.map(item =>
+            supabaseClient.rpc("decrementar_estoque", {
+                produto_id: item.id,
+                quantidade: item.quantity
+            })
+        );
+
+        const resultados = await Promise.all(baixasDeEstoque);
+
+        const algumErro = resultados.some(r => r.error);
+
+        if (algumErro) {
+
+            console.error("Erro ao abater estoque:", resultados);
+
+            alert(
+                "Não foi possível confirmar o pedido agora. Tente novamente."
+            );
 
             return;
 
@@ -328,6 +350,17 @@
             `https://wa.me/${phone}?text=${message}`,
             "_blank"
         );
+
+
+        // Esvazia o carrinho e recarrega os produtos
+        // (pra já mostrar "Esgotado" se algum zerou)
+        cart = [];
+
+        updateCart();
+
+        closeCart();
+
+        loadProducts();
 
     }
 
