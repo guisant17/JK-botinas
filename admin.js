@@ -183,3 +183,46 @@
     }
 
     initAdmin();
+
+
+    /* ================= CADASTRAR PRODUTO ================= */
+
+async function cadastrarProduto(event) {
+    event.preventDefault();
+
+    const msg = document.getElementById("msgCadastro");
+    msg.style.color = "#aaa";
+    msg.textContent = "Cadastrando...";
+
+    const nome = document.getElementById("novoNome").value;
+    const categoria = document.getElementById("novaCategoria").value;
+    const preco = parseFloat(document.getElementById("novoPreco").value);
+    const estoque = parseInt(document.getElementById("novoEstoque").value, 10);
+    const imagem_url = document.getElementById("novaImagem").value || null;
+
+    const { error } = await supabaseClient
+        .from("produtos")
+        .insert([
+            {
+                nome: nome,
+                categoria: categoria,
+                preco: preco,
+                estoque: estoque,
+                imagem_url: imagem_url
+            }
+        ]);
+
+    if (error) {
+        console.error("Erro ao cadastrar:", error);
+        msg.style.color = "#e55";
+        msg.textContent = "Erro ao cadastrar produto. Verifique as permissões.";
+        return;
+    }
+
+    msg.style.color = "#5e5";
+    msg.textContent = "Produto cadastrado com sucesso!";
+    document.getElementById("formNovoProduto").reset();
+
+    // Recarrega a tabela de produtos
+    carregarProdutosAdmin();
+}
