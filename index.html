@@ -408,7 +408,7 @@
         <div>
 
             <img
-                src="Fotos/logo.jpeg"
+                src="logo.jpeg"
                 class="footer-logo"
                 alt="JK Botinas"
             >
@@ -506,7 +506,7 @@ Personalidade, tradição e atitude em cada detalhe.
 </footer>
 
 
-<!-- ================= CARRINHO DE COMPRAS ================= -->
+<!-- ================= CARRINHO ================= -->
 
 <div
     class="cart-overlay"
@@ -564,6 +564,45 @@ Personalidade, tradição e atitude em cada detalhe.
             </button>
 
         </div>
+
+    </div>
+
+</div>
+
+
+<!-- ================= GALERIA DE FOTOS ================= -->
+
+<div
+    class="lightbox-overlay"
+    id="lightboxOverlay"
+    onclick="fecharGaleriaFora(event)"
+>
+
+    <div class="lightbox">
+
+        <button class="lightbox-close" onclick="fecharGaleria()">
+            ×
+        </button>
+
+        <button
+            class="lightbox-nav lightbox-prev"
+            id="lightboxPrev"
+            onclick="imagemAnterior()"
+        >
+            ‹
+        </button>
+
+        <img id="lightboxImg" src="" alt="">
+
+        <button
+            class="lightbox-nav lightbox-next"
+            id="lightboxNext"
+            onclick="proximaImagem()"
+        >
+            ›
+        </button>
+
+        <div class="lightbox-counter" id="lightboxCounter"></div>
 
     </div>
 
