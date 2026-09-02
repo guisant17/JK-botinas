@@ -864,6 +864,85 @@
             font-size: 13px;
         }
 
+        .admin-actions {
+            white-space: nowrap;
+        }
+
+        .admin-edit-btn,
+        .admin-delete-btn {
+            border: none;
+            cursor: pointer;
+            padding: 8px 14px;
+            font-size: 12px;
+            margin-right: 6px;
+        }
+
+        .admin-delete-btn {
+            background: transparent;
+            border: 1px solid #a33;
+            color: #e77;
+        }
+
+        .admin-delete-btn:hover {
+            background: #a33;
+            color: #fff;
+        }
+
+        .admin-form-box {
+            background: #111;
+            border: 1px solid #262626;
+            padding: 30px;
+            margin-bottom: 45px;
+        }
+
+        .admin-form-box h2 {
+            margin-bottom: 20px;
+        }
+
+        .admin-form-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 18px;
+        }
+
+        .admin-form-grid label {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            color: #999;
+            font-size: 13px;
+        }
+
+        .admin-form-full {
+            grid-column: 1 / -1;
+        }
+
+        .admin-form-grid input,
+        .admin-form-grid select {
+            padding: 11px 13px;
+            background: #0a0a0a;
+            border: 1px solid #333;
+            color: #fff;
+            font-size: 14px;
+        }
+
+        .admin-form-actions {
+            display: flex;
+            gap: 12px;
+            margin-top: 22px;
+        }
+
+        .admin-form-actions .btn {
+            border: none;
+            cursor: pointer;
+        }
+
+        @media (max-width: 700px) {
+            .admin-form-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
         /* ================= FOOTER ================= */
 
         footer {
