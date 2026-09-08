@@ -60,6 +60,200 @@
 
 
     <main class="admin-content">
+ <!-- =========================================================
+     DASHBOARD DE ESTOQUE
+     ========================================================= -->
+
+<section class="estoque-dashboard">
+
+    <div class="dashboard-titulo">
+        <div>
+            <h2>Visão geral do estoque</h2>
+            <p>Acompanhe rapidamente a situação dos seus produtos.</p>
+        </div>
+
+        <button
+            type="button"
+            class="dashboard-atualizar"
+            onclick="carregarDashboardEstoque()"
+        >
+            🔄 Atualizar
+        </button>
+    </div>
+
+    <!-- ================= CARDS ================= -->
+
+    <div class="dashboard-cards">
+
+        <!-- TOTAL -->
+        <div class="estoque-card estoque-card-total">
+
+            <div class="estoque-card-icone">
+                📦
+            </div>
+
+            <div class="estoque-card-info">
+                <span>Total de produtos</span>
+                <strong id="dashboardTotalProdutos">0</strong>
+            </div>
+
+        </div>
+
+
+        <!-- ESTOQUE NORMAL -->
+        <div class="estoque-card estoque-card-normal">
+
+            <div class="estoque-card-icone">
+                🟢
+            </div>
+
+            <div class="estoque-card-info">
+                <span>Estoque normal</span>
+                <strong id="dashboardEstoqueNormal">0</strong>
+            </div>
+
+        </div>
+
+
+        <!-- QUASE ACABANDO -->
+        <div class="estoque-card estoque-card-alerta">
+
+            <div class="estoque-card-icone">
+                🟡
+            </div>
+
+            <div class="estoque-card-info">
+                <span>Quase acabando</span>
+                <strong id="dashboardQuaseAcabando">0</strong>
+            </div>
+
+        </div>
+
+
+        <!-- SEM ESTOQUE -->
+        <div class="estoque-card estoque-card-falta">
+
+            <div class="estoque-card-icone">
+                🔴
+            </div>
+
+            <div class="estoque-card-info">
+                <span>Sem estoque</span>
+                <strong id="dashboardSemEstoque">0</strong>
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <!-- ================= ÁREA DO GRÁFICO ================= -->
+
+    <div class="dashboard-grafico-area">
+
+        <div class="dashboard-grafico-header">
+
+            <div>
+                <h3>Situação dos produtos</h3>
+                <p>
+                    Produtos classificados de acordo com a quantidade disponível.
+                </p>
+            </div>
+
+        </div>
+
+        <div class="dashboard-grafico">
+
+            <div class="grafico-barras">
+
+                <div class="grafico-item">
+
+                    <div class="grafico-label">
+                        <span>🟢 Estoque normal</span>
+                        <strong id="graficoNormalValor">0</strong>
+                    </div>
+
+                    <div class="grafico-barra-fundo">
+                        <div
+                            id="graficoNormalBarra"
+                            class="grafico-barra grafico-barra-normal"
+                            style="width:0%;"
+                        ></div>
+                    </div>
+
+                </div>
+
+
+                <div class="grafico-item">
+
+                    <div class="grafico-label">
+                        <span>🟡 Quase acabando</span>
+                        <strong id="graficoAlertaValor">0</strong>
+                    </div>
+
+                    <div class="grafico-barra-fundo">
+                        <div
+                            id="graficoAlertaBarra"
+                            class="grafico-barra grafico-barra-alerta"
+                            style="width:0%;"
+                        ></div>
+                    </div>
+
+                </div>
+
+
+                <div class="grafico-item">
+
+                    <div class="grafico-label">
+                        <span>🔴 Sem estoque</span>
+                        <strong id="graficoFaltaValor">0</strong>
+                    </div>
+
+                    <div class="grafico-barra-fundo">
+                        <div
+                            id="graficoFaltaBarra"
+                            class="grafico-barra grafico-barra-falta"
+                            style="width:0%;"
+                        ></div>
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <!-- ================= PRODUTOS EM ALERTA ================= -->
+
+    <div class="dashboard-alertas">
+
+        <div class="dashboard-alertas-header">
+
+            <div>
+                <h3>⚠️ Produtos que precisam de atenção</h3>
+
+                <p>
+                    Produtos sem estoque ou com poucas unidades disponíveis.
+                </p>
+            </div>
+
+        </div>
+
+        <div
+            id="dashboardListaAlertas"
+            class="dashboard-lista-alertas"
+        >
+            <div class="dashboard-carregando">
+                Carregando estoque...
+            </div>
+        </div>
+
+    </div>
+
+</section>       
 <!-- Form de Cadastro de Novos Produtos -->
 <section style="background: #111; padding: 20px; border: 1px solid #262626; margin-bottom: 40px;">
     <h3 style="color: var(--gold); margin-bottom: 15px; font-family: Georgia, serif;">Cadastrar Novo Produto</h3>
