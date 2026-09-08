@@ -60,112 +60,124 @@
 
 
     <main class="admin-content">
+<!-- Form de Cadastro de Novos Produtos -->
+<section style="background: #111; padding: 20px; border: 1px solid #262626; margin-bottom: 40px;">
+    <h3 style="color: var(--gold); margin-bottom: 15px; font-family: Georgia, serif;">Cadastrar Novo Produto</h3>
+    
+    <form id="formNovoProduto" onsubmit="cadastrarProduto(event)" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+        <input type="text" id="novoNome" placeholder="Nome do Produto" required style="padding:10px; background:#0a0a0a; border:1px solid #333; color:#fff;">
+        
+        <select
+    id="novaCategoria"
+    required
+    onchange="atualizarOpcoesTamanho()"
+    style="padding:10px; background:#0a0a0a; border:1px solid #333; color:#fff;"
+>
+            <option value="">Selecione a Categoria</option>
+            <option value="botas">Botas</option>
+            <option value="roupas">Roupas</option>
+            <option value="chapeus">Chapéus</option>
+            <option value="acessorios">Acessórios</option>
+        </select>
+        
+        <input type="number" step="0.01" id="novoPreco" placeholder="Preço (ex: 199.90)" required style="padding:10px; background:#0a0a0a; border:1px solid #333; color:#fff;">
+        
+        <!-- ================= TAMANHOS ================= -->
 
-        <!-- ============ FORMULÁRIO DE PRODUTO ============ -->
+<div
+    id="areaTamanhosCadastro"
+    style="
+        grid-column: 1 / -1;
+        background:#0a0a0a;
+        border:1px solid #333;
+        padding:15px;
+        border-radius:6px;
+    "
+>
 
-        <section class="admin-form-box" id="productForm">
+    <h4
+        style="
+            margin:0 0 12px;
+            color:var(--gold);
+            font-family:Georgia,serif;
+        "
+    >
+        Tamanhos e Estoque
+    </h4>
 
-            <h2 id="formTitulo">Adicionar novo produto</h2>
+    <p
+        style="
+            margin:0 0 15px;
+            color:#aaa;
+            font-size:13px;
+        "
+    >
+        Selecione os tamanhos disponíveis e informe o estoque de cada um.
+    </p>
 
-            <form id="productFormEl" onsubmit="salvarProduto(event)">
+    <div id="opcoesTamanhosCadastro">
 
-                <input type="hidden" id="prodId">
-                <input type="hidden" id="prodImagemAtual">
+        <p style="color:#888;">
+            Selecione primeiro uma categoria.
+        </p>
 
-                <div class="admin-form-grid">
+    </div>
 
-                    <label>
-                        Nome do produto
-                        <input type="text" id="prodNome" required>
-                    </label>
+    <p
+        id="estoqueTotalCadastro"
+        style="
+            margin:15px 0 0;
+            color:#d4af37;
+            font-weight:bold;
+        "
+    >
+        Estoque total: 0
+    </p>
 
-                    <label>
-                        Categoria
-                        <select id="prodCategoria" required>
-                            <option value="">Selecione...</option>
-                            <option value="botas">Botas</option>
-                            <option value="roupas">Roupas</option>
-                            <option value="chapeus">Chapéus</option>
-                            <option value="acessorios">Acessórios</option>
-                        </select>
-                    </label>
+</div>
+        
+<input
+    type="file"
+    id="novaImagem"
+    accept="image/*"
+    required
+    style="padding:10px; background:#0a0a0a; border:1px solid #333; color:#fff;"
+>
 
-                    <label>
-                        Preço (R$)
-                        <input type="number" id="prodPreco" step="0.01" min="0" required>
-                    </label>
-
-                    <label>
-                        Preço antigo (R$) — opcional, só se tiver desconto
-                        <input type="number" id="prodPrecoAntigo" step="0.01" min="0">
-                    </label>
-
-                    <label>
-                        Etiqueta — opcional
-                        <select id="prodBadge">
-                            <option value="">Nenhuma</option>
-                            <option value="NOVO">NOVO</option>
-                            <option value="OFERTA">OFERTA</option>
-                            <option value="DESTAQUE">DESTAQUE</option>
-                        </select>
-                    </label>
-
-                    <label>
-                        Estoque
-                        <input type="number" id="prodEstoque" min="0" required>
-                    </label>
-
-                    <label class="admin-form-full">
-                        Foto do produto — opcional (deixe em branco pra manter a foto atual, se estiver editando)
-                        <input type="file" id="prodFoto" accept="image/*">
-                    </label>
-
-                </div>
-
-                <div class="admin-form-actions">
-
-                    <button type="submit" class="btn" id="btnSalvarProduto">
-                        Adicionar produto
-                    </button>
-
-                    <button
-                        type="button"
-                        class="btn btn-outline"
-                        id="btnCancelarEdicao"
-                        onclick="cancelarEdicao()"
-                        style="display:none"
-                    >
-                        Cancelar edição
-                    </button>
-
-                </div>
-
-            </form>
-
-        </section>
+    <button
+        type="submit"
+        class="btn"
+        style="grid-column: 1 / -1; cursor:pointer;"
+    >
+        Cadastrar Produto
+    </button>
+    </form>
+    <p
+    id="msgCadastro"
+    style="margin-top:10px; font-size:14px;"
+></p>
+</section>
 
 
-        <!-- ============ LISTA DE PRODUTOS ============ -->
 
-        <h2>Produtos cadastrados</h2>
+        <h2>Estoque de produtos</h2>
 
         <p class="admin-hint">
-            Pra mudar só a quantidade em estoque rapidamente, edite o número
-            e clique em "Salvar" na linha do produto. Pra mudar nome, preço,
-            categoria ou foto, use "Editar".
+            Altere a quantidade e clique em "Salvar" na linha do produto.
         </p>
 
         <table class="admin-table" id="adminTable">
 
             <thead>
                 <tr>
-                    <th>Produto</th>
-                    <th>Categoria</th>
-                    <th>Preço</th>
-                    <th>Estoque</th>
-                    <th></th>
-                    <th>Ações</th>
-                </tr>
+    <th>IMAGEM</th>
+<th>PRODUTO</th>
+<th>CATEGORIA</th>
+<th>PREÇO</th>
+<th>ESTOQUE</th>
+<th>SALVAR</th>
+<th>AÇÕES</th>
+</tr>
             </thead>
 
             <tbody id="adminTableBody">
