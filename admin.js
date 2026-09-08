@@ -69,10 +69,13 @@ async function fazerLogout() {
 // =========================================================
 
 function mostrarPainel() {
+
     document.getElementById("loginScreen").style.display = "none";
     document.getElementById("adminPanel").style.display = "block";
 
     carregarProdutosAdmin();
+    carregarDashboardEstoque();
+
 }
 
 
@@ -828,6 +831,7 @@ function fecharModalTamanhos() {
 
 async function salvarEstoque(id) {
 
+
     const input = document.getElementById(`estoque-${id}`);
 
     if (!input) {
@@ -864,6 +868,8 @@ async function salvarEstoque(id) {
         console.error(error);
         alert("Erro inesperado ao salvar estoque.");
     }
+    // ATUALIZA O DASHBOARD
+    carregarDashboardEstoque();
 }
 // =========================================================
 // EXCLUIR PRODUTO
@@ -1255,6 +1261,46 @@ async function editarProduto(id) {
 
 
         await carregarProdutosAdmin();
+
+        // Calcular o estoque total somando todos os tamanhos
+const estoqueTotal = tamanhos.reduce(
+    (total, item) => total + Number(item.estoque),
+    0
+);
+
+// Atualizar o estoque total na tabela produtos
+const {
+    error: erroEstoque
+} = await supabaseClient
+    .from("produtos")
+    .update({
+        estoque: estoqueTotal
+    })
+    .eq("id", id);
+
+if (erroEstoque) {
+
+    console.error(
+        "Erro ao atualizar estoque total:",
+        erroEstoque
+    );
+
+    alert(
+        "Os tamanhos foram salvos, mas houve erro ao atualizar o estoque total."
+    );
+
+    return;
+}
+
+alert(
+    "Tamanhos e estoques salvos com sucesso!"
+);
+
+fecharModalTamanhos();
+
+await carregarProdutosAdmin();
+
+await carregarDashboardEstoque();
 
 
     } catch (error) {
@@ -2071,3 +2117,300 @@ supabaseClient.auth.onAuthStateChange(
 document.addEventListener("DOMContentLoaded", () => {
     initAdmin();
 });
+/* =========================================================
+   DASHBOARD DE ESTOQUE
+   ========================================================= */
+
+async function carregarDashboardEstoque() {
+
+    try {
+
+        // Buscar produtos
+        const { data: produtos, error: erroProdutos } =
+            await supabaseClient
+                .from("produtos")
+                .select("*");
+
+        if (erroProdutos) {
+            console.error("Erro ao carregar produtos:", erroProdutos);
+            return;
+        }
+
+        // Buscar estoques por tamanho
+        const { data: tamanhos, error: erroTamanhos } =
+            await supabaseClient
+                .from("produto_tamanhos")
+                .select("produto_id, tamanho, estoque");
+
+        if (erroTamanhos) {
+            console.error("Erro ao carregar tamanhos:", erroTamanhos);
+            return;
+        }
+
+
+        /* =====================================================
+           CALCULAR ESTOQUE REAL DE CADA PRODUTO
+           ===================================================== */
+
+        const estoquePorProduto = {};
+
+        // Primeiro, soma o estoque por tamanho
+        tamanhos.forEach(item => {
+
+            if (!estoquePorProduto[item.produto_id]) {
+                estoquePorProduto[item.produto_id] = 0;
+            }
+
+            estoquePorProduto[item.produto_id] += Number(item.estoque) || 0;
+
+        });
+
+
+        /* =====================================================
+           CLASSIFICAÇÃO
+           ===================================================== */
+
+        let totalProdutos = produtos.length;
+
+        let estoqueNormal = 0;
+        let quaseAcabando = 0;
+        let semEstoque = 0;
+
+        const produtosAlerta = [];
+
+
+        produtos.forEach(produto => {
+
+            /*
+             * Se o produto possui tamanhos cadastrados,
+             * usamos a soma dos estoques por tamanho.
+             *
+             * Caso não tenha tamanhos, usamos o estoque
+             * tradicional da tabela produtos.
+             */
+
+            const possuiTamanhos =
+                Object.prototype.hasOwnProperty.call(
+                    estoquePorProduto,
+                    produto.id
+                );
+
+            const estoque = possuiTamanhos
+                ? estoquePorProduto[produto.id]
+                : Number(produto.estoque) || 0;
+
+
+            // SEM ESTOQUE
+            if (estoque <= 0) {
+
+                semEstoque++;
+
+                produtosAlerta.push({
+                    ...produto,
+                    estoqueReal: 0,
+                    tipoAlerta: "sem"
+                });
+
+            }
+
+            // QUASE ACABANDO
+            else if (estoque <= 5) {
+
+                quaseAcabando++;
+
+                produtosAlerta.push({
+                    ...produto,
+                    estoqueReal: estoque,
+                    tipoAlerta: "quase"
+                });
+
+            }
+
+            // ESTOQUE NORMAL
+            else {
+
+                estoqueNormal++;
+
+            }
+
+        });
+
+
+        /* =====================================================
+           ATUALIZAR CARDS
+           ===================================================== */
+
+        document.getElementById(
+            "dashboardTotalProdutos"
+        ).textContent = totalProdutos;
+
+        document.getElementById(
+            "dashboardEstoqueNormal"
+        ).textContent = estoqueNormal;
+
+        document.getElementById(
+            "dashboardQuaseAcabando"
+        ).textContent = quaseAcabando;
+
+        document.getElementById(
+            "dashboardSemEstoque"
+        ).textContent = semEstoque;
+
+
+        /* =====================================================
+           ATUALIZAR VALORES DO GRÁFICO
+           ===================================================== */
+
+        document.getElementById(
+            "graficoNormalValor"
+        ).textContent = estoqueNormal;
+
+        document.getElementById(
+            "graficoAlertaValor"
+        ).textContent = quaseAcabando;
+
+        document.getElementById(
+            "graficoFaltaValor"
+        ).textContent = semEstoque;
+
+
+        /* =====================================================
+           CALCULAR PORCENTAGENS DAS BARRAS
+           ===================================================== */
+
+        const totalClassificados =
+            estoqueNormal +
+            quaseAcabando +
+            semEstoque;
+
+
+        let porcentagemNormal = 0;
+        let porcentagemAlerta = 0;
+        let porcentagemFalta = 0;
+
+
+        if (totalClassificados > 0) {
+
+            porcentagemNormal =
+                (estoqueNormal / totalClassificados) * 100;
+
+            porcentagemAlerta =
+                (quaseAcabando / totalClassificados) * 100;
+
+            porcentagemFalta =
+                (semEstoque / totalClassificados) * 100;
+
+        }
+
+
+        document.getElementById(
+            "graficoNormalBarra"
+        ).style.width = `${porcentagemNormal}%`;
+
+        document.getElementById(
+            "graficoAlertaBarra"
+        ).style.width = `${porcentagemAlerta}%`;
+
+        document.getElementById(
+            "graficoFaltaBarra"
+        ).style.width = `${porcentagemFalta}%`;
+
+
+        /* =====================================================
+           ORDENAR ALERTAS
+           ===================================================== */
+
+        produtosAlerta.sort(
+            (a, b) => a.estoqueReal - b.estoqueReal
+        );
+
+
+        /* =====================================================
+           MOSTRAR PRODUTOS EM ALERTA
+           ===================================================== */
+
+        const lista =
+            document.getElementById("dashboardListaAlertas");
+
+
+        if (produtosAlerta.length === 0) {
+
+            lista.innerHTML = `
+                <div class="dashboard-carregando">
+                    ✅ Todos os produtos estão com estoque normal.
+                </div>
+            `;
+
+            return;
+
+        }
+
+
+        lista.innerHTML = produtosAlerta.map(produto => {
+
+            const categoria =
+                produto.categoria || "Sem categoria";
+
+
+            if (produto.tipoAlerta === "sem") {
+
+                return `
+                    <div class="dashboard-alerta-produto">
+
+                        <div class="dashboard-alerta-produto-info">
+
+                            <span class="dashboard-alerta-produto-nome">
+                                ${escapeHtml(produto.nome)}
+                            </span>
+
+                            <span class="dashboard-alerta-produto-categoria">
+                                ${escapeHtml(categoria)}
+                            </span>
+
+                        </div>
+
+                        <span class="dashboard-alerta-estoque dashboard-alerta-sem-estoque">
+                            🔴 Sem estoque
+                        </span>
+
+                    </div>
+                `;
+
+            }
+
+
+            return `
+                <div class="dashboard-alerta-produto">
+
+                    <div class="dashboard-alerta-produto-info">
+
+                        <span class="dashboard-alerta-produto-nome">
+                            ${escapeHtml(produto.nome)}
+                        </span>
+
+                        <span class="dashboard-alerta-produto-categoria">
+                            ${escapeHtml(categoria)}
+                        </span>
+
+                    </div>
+
+                    <span class="dashboard-alerta-estoque dashboard-alerta-quase">
+                        🟡 ${produto.estoqueReal} unidade${produto.estoqueReal === 1 ? "" : "s"}
+                    </span>
+
+                </div>
+            `;
+
+        }).join("");
+
+
+    } catch (erro) {
+
+        console.error(
+            "Erro inesperado no dashboard:",
+            erro
+        );
+
+    }
+
+}
