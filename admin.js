@@ -1,458 +1,2073 @@
-/* ================= LOGIN ================= */
+/* =========================================================
+   JK BOTINAS - PAINEL ADMINISTRATIVO
+   ========================================================= */
 
-    async function fazerLogin() {
+// =========================================================
+// LOGIN
+// =========================================================
 
-        const email =
-            document.getElementById("loginEmail").value;
+async function fazerLogin() {
+    const email = document.getElementById("loginEmail").value.trim();
+    const senha = document.getElementById("loginPassword").value;
+    const erro = document.getElementById("loginError");
 
-        const senha =
-            document.getElementById("loginPassword").value;
+    erro.textContent = "";
 
-        const errorBox =
-            document.getElementById("loginError");
+    if (!email || !senha) {
+        erro.textContent = "Digite seu e-mail e sua senha.";
+        return;
+    }
 
-        errorBox.textContent = "";
-
-        const { error } =
-            await supabaseClient.auth.signInWithPassword({
-                email: email,
-                password: senha
-            });
+    try {
+        const { data, error } = await supabaseClient.auth.signInWithPassword({
+            email: email,
+            password: senha
+        });
 
         if (error) {
-
-            errorBox.textContent =
-                "E-mail ou senha incorretos.";
-
+            console.error("Erro no login:", error);
+            erro.textContent = error.message || "E-mail ou senha incorretos.";
             return;
+        }
 
+        if (!data.session) {
+            erro.textContent = "Login realizado, mas nenhuma sessão foi criada.";
+            return;
         }
 
         mostrarPainel();
 
+    } catch (err) {
+        console.error("Erro inesperado no login:", err);
+        erro.textContent = "Erro ao realizar login.";
     }
+}
 
 
-    async function fazerLogout() {
+// =========================================================
+// LOGOUT
+// =========================================================
 
+async function fazerLogout() {
+    try {
         await supabaseClient.auth.signOut();
 
         document.getElementById("adminPanel").style.display = "none";
-
         document.getElementById("loginScreen").style.display = "flex";
 
         document.getElementById("loginEmail").value = "";
-
         document.getElementById("loginPassword").value = "";
 
+    } catch (error) {
+        console.error("Erro ao sair:", error);
+    }
+}
+
+
+// =========================================================
+// MOSTRAR PAINEL
+// =========================================================
+
+function mostrarPainel() {
+    document.getElementById("loginScreen").style.display = "none";
+    document.getElementById("adminPanel").style.display = "block";
+
+    carregarProdutosAdmin();
+}
+
+
+// =========================================================
+// ESCAPAR HTML
+// Evita problemas quando nome/categoria possuem caracteres especiais
+// =========================================================
+
+function escapeHtml(valor) {
+    if (valor === null || valor === undefined) {
+        return "";
     }
 
+    return String(valor)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
 
-    function mostrarPainel() {
 
-        document.getElementById("loginScreen").style.display = "none";
+// =========================================================
+// FORMATAR PREÇO
+// =========================================================
 
-        document.getElementById("adminPanel").style.display = "block";
+function formatarPreco(valor) {
+    const numero = Number(valor);
 
-        carregarProdutosAdmin();
-
+    if (isNaN(numero)) {
+        return "R$ 0,00";
     }
 
-
-    /* ================= LISTAGEM ================= */
-
-    // Guarda os produtos carregados (id -> produto), usado pelo
-    // botão "Editar" pra preencher o formulário sem precisar
-    // buscar de novo no banco
-    let produtosCache = {};
+    return numero.toLocaleString("pt-BR", {
+        style: "currency",
+        currency: "BRL"
+    });
+}
 
 
-    async function carregarProdutosAdmin() {
+// =========================================================
+// PEGAR URL PÚBLICA DE UMA IMAGEM
+// =========================================================
 
-        const tbody =
-            document.getElementById("adminTableBody");
+function obterUrlImagem(caminho) {
 
-        const { data: produtos, error } = await supabaseClient
+    if (!caminho) {
+        return null;
+    }
+
+    // Se já for uma URL completa, não modifica
+    if (
+        caminho.startsWith("http://") ||
+        caminho.startsWith("https://")
+    ) {
+        return caminho;
+    }
+
+    const { data } = supabaseClient.storage
+        .from("produtos")
+        .getPublicUrl(caminho);
+
+    return data?.publicUrl || null;
+}
+
+
+// =========================================================
+// CARREGAR IMAGENS DOS PRODUTOS
+// =========================================================
+
+async function carregarImagensProdutos() {
+
+    const { data, error } = await supabaseClient
+        .from("produto_imagens")
+        .select("produto_id, url, ordem")
+        .order("ordem", { ascending: true });
+
+    if (error) {
+        console.error("Erro ao carregar imagens:", error);
+        return {};
+    }
+
+    const imagensPorProduto = {};
+
+    (data || []).forEach(imagem => {
+
+        if (!imagensPorProduto[imagem.produto_id]) {
+            imagensPorProduto[imagem.produto_id] = [];
+        }
+
+        const urlPublica = obterUrlImagem(imagem.url);
+
+        if (urlPublica) {
+            imagensPorProduto[imagem.produto_id].push({
+                url: urlPublica,
+                caminho: imagem.url,
+                ordem: imagem.ordem
+            });
+        }
+    });
+
+    return imagensPorProduto;
+}
+
+// =========================================================
+// CARREGAR PRODUTOS NO PAINEL
+// =========================================================
+
+async function carregarProdutosAdmin() {
+
+    const tbody = document.getElementById("adminTableBody");
+
+    if (!tbody) {
+        console.error("Elemento adminTableBody não encontrado.");
+        return;
+    }
+
+    tbody.innerHTML = `
+        <tr>
+            <td colspan="7">Carregando produtos...</td>
+        </tr>
+    `;
+
+    try {
+
+        // -----------------------------------------
+        // BUSCAR PRODUTOS
+        // -----------------------------------------
+
+        const {
+            data: produtos,
+            error: erroProdutos
+        } = await supabaseClient
             .from("produtos")
             .select("*")
-            .order("criado_em");
+            .order("criado_em", {
+                ascending: false
+            });
 
-        if (error) {
+        if (erroProdutos) {
+
+            console.error(
+                "Erro ao carregar produtos:",
+                erroProdutos
+            );
 
             tbody.innerHTML = `
                 <tr>
-                    <td colspan="6" style="color:#e55">
-                        Erro ao carregar produtos.
+                    <td colspan="7">
+                        Erro ao carregar produtos:
+                        ${escapeHtml(erroProdutos.message)}
                     </td>
                 </tr>
             `;
 
             return;
-
         }
 
-        produtosCache = {};
 
-        produtos.forEach(produto => {
+        // -----------------------------------------
+        // BUSCAR IMAGENS
+        // -----------------------------------------
 
-            produtosCache[produto.id] = produto;
+        const imagensPorProduto =
+            await carregarImagensProdutos();
 
-        });
 
-        tbody.innerHTML = produtos.map(produto => `
+        // -----------------------------------------
+        // NENHUM PRODUTO
+        // -----------------------------------------
+
+        if (!produtos || produtos.length === 0) {
+
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="7">
+                        Nenhum produto cadastrado.
+                    </td>
+                </tr>
+            `;
+
+            return;
+        }
+
+
+        // -----------------------------------------
+        // MONTAR TABELA
+        // -----------------------------------------
+
+        tbody.innerHTML = produtos.map(produto => {
+
+            let imagemUrl = null;
+
+            // Primeiro tenta produto_imagens
+            if (
+                imagensPorProduto[produto.id] &&
+                imagensPorProduto[produto.id].length > 0
+            ) {
+
+                imagemUrl =
+                    imagensPorProduto[produto.id][0].url;
+            }
+
+
+            // Se não encontrou, usa imagem_url
+            if (
+                !imagemUrl &&
+                produto.imagem_url
+            ) {
+
+                imagemUrl =
+                    obterUrlImagem(
+                        produto.imagem_url
+                    );
+            }
+
+
+            // -----------------------------------------
+            // IMAGEM
+            // -----------------------------------------
+
+            const imagemHTML = imagemUrl
+
+                ? `
+                    <div class="admin-product-image">
+
+                        <img
+                            src="${escapeHtml(imagemUrl)}"
+                            alt="${escapeHtml(produto.nome)}"
+                            loading="lazy"
+                            onerror="
+                                this.style.display='none';
+                                this.nextElementSibling.style.display='flex';
+                            "
+                        >
+
+                        <div
+                            class="admin-image-error"
+                            style="display:none;"
+                        >
+                            Sem imagem
+                        </div>
+
+                    </div>
+                `
+
+                : `
+                    <div class="admin-product-image admin-no-image">
+                        Sem imagem
+                    </div>
+                `;
+
+
+            // -----------------------------------------
+            // LINHA DO PRODUTO
+            // -----------------------------------------
+
+            return `
+                <tr>
+
+                    <!-- IMAGEM -->
+                    <td>
+                        ${imagemHTML}
+                    </td>
+
+
+                    <!-- PRODUTO -->
+                    <td>
+                        <strong>
+                            ${escapeHtml(produto.nome)}
+                        </strong>
+                    </td>
+
+
+                    <!-- CATEGORIA -->
+                    <td>
+                        ${escapeHtml(
+                            produto.categoria || "-"
+                        )}
+                    </td>
+
+
+                    <!-- PREÇO -->
+                    <td>
+                        ${formatarPreco(produto.preco)}
+                    </td>
+
+
+                    <!-- ESTOQUE -->
+                    <td>
+
+                        <input
+                            type="number"
+                            min="0"
+                            value="${Number(
+                                produto.estoque || 0
+                            )}"
+                            id="estoque-${produto.id}"
+                            class="estoque-input"
+                        >
+
+                    </td>
+
+
+                    <!-- SALVAR ESTOQUE -->
+                    <td>
+
+                        <button
+                            class="btn"
+                            onclick="salvarEstoque('${produto.id}')"
+                        >
+                            Salvar
+                        </button>
+
+                    </td>
+
+
+                    <!-- AÇÕES -->
+                    <td>
+
+<div class="admin-actions">
+
+    <button
+        class="btn-tamanhos"
+        onclick="abrirTamanhos('${produto.id}')"
+    >
+        📏 Tamanhos
+    </button>
+
+    <button
+        class="btn-edit"
+        onclick="editarProduto('${produto.id}')"
+    >
+        ✏️ Editar
+    </button>
+
+    <button
+        class="btn-delete"
+        onclick="excluirProduto('${produto.id}')"
+    >
+        🗑️ Excluir
+    </button>
+
+</div>
+
+                    </td>
+
+                </tr>
+            `;
+
+        }).join("");
+
+
+    } catch (error) {
+
+        console.error(
+            "Erro inesperado:",
+            error
+        );
+
+        tbody.innerHTML = `
             <tr>
-                <td>${produto.nome}</td>
-                <td>${produto.categoria}</td>
-                <td>R$ ${produto.preco.toFixed(2).replace(".", ",")}</td>
-                <td>
+                <td colspan="7">
+                    Ocorreu um erro ao carregar os produtos.
+                </td>
+            </tr>
+        `;
+    }
+}
+
+// =========================================================
+// GERENCIAR TAMANHOS DO PRODUTO
+// =========================================================
+
+async function abrirTamanhos(id) {
+
+    try {
+
+        const {
+            data: produto,
+            error: erroProduto
+        } = await supabaseClient
+            .from("produtos")
+            .select("id, nome")
+            .eq("id", id)
+            .single();
+
+        if (erroProduto || !produto) {
+            alert("Produto não encontrado.");
+            return;
+        }
+
+        const {
+            data: tamanhos,
+            error: erroTamanhos
+        } = await supabaseClient
+            .from("produto_tamanhos")
+            .select("*")
+            .eq("produto_id", id)
+            .order("id", { ascending: true });
+
+        if (erroTamanhos) {
+            console.error(erroTamanhos);
+            alert("Erro ao carregar os tamanhos.");
+            return;
+        }
+
+        let linhas = "";
+
+        if (tamanhos && tamanhos.length > 0) {
+
+            linhas = tamanhos.map(tamanho => `
+                <div class="tamanho-linha">
+
+                    <input
+                        type="text"
+                        class="tamanho-nome"
+                        value="${escapeHtml(tamanho.tamanho)}"
+                        placeholder="Tamanho"
+                    >
+
                     <input
                         type="number"
                         min="0"
-                        class="admin-stock-input"
-                        id="estoque-${produto.id}"
-                        value="${produto.estoque}"
+                        class="tamanho-estoque"
+                        value="${Number(tamanho.estoque || 0)}"
+                        placeholder="Estoque"
                     >
-                </td>
-                <td>
+
                     <button
-                        class="btn admin-save-btn"
-                        id="btn-${produto.id}"
-                        onclick="salvarEstoque('${produto.id}')"
+                        type="button"
+                        class="btn-delete-tamanho"
+                        onclick="this.parentElement.remove()"
                     >
-                        Salvar
+                        🗑️
                     </button>
-                </td>
-                <td class="admin-actions">
-                    <button
-                        class="btn btn-outline admin-edit-btn"
-                        onclick="editarProduto('${produto.id}')"
-                    >
-                        Editar
-                    </button>
-                    <button
-                        class="btn admin-delete-btn"
-                        onclick="excluirProduto('${produto.id}')"
-                    >
-                        Excluir
-                    </button>
-                </td>
-            </tr>
-        `).join("");
 
-    }
-
-
-    /* ================= SALVAR ESTOQUE (edição rápida) ================= */
-
-    async function salvarEstoque(id) {
-
-        const input =
-            document.getElementById(`estoque-${id}`);
-
-        const botao =
-            document.getElementById(`btn-${id}`);
-
-        const novoValor =
-            parseInt(input.value, 10);
-
-        if (isNaN(novoValor) || novoValor < 0) {
-
-            alert("Digite uma quantidade válida.");
-
-            return;
+                </div>
+            `).join("");
 
         }
 
-        botao.textContent = "Salvando...";
+        const modal = document.createElement("div");
+
+        modal.id = "modalTamanhos";
+
+        modal.innerHTML = `
+
+            <div class="modal-tamanhos-overlay">
+
+                <div class="modal-tamanhos">
+
+                    <div class="modal-tamanhos-header">
+
+                        <h2>
+                            Tamanhos
+                        </h2>
+
+                        <button
+                            type="button"
+                            class="modal-fechar"
+                            onclick="fecharModalTamanhos()"
+                        >
+                            ✕
+                        </button>
+
+                    </div>
+
+                    <p class="modal-produto-nome">
+                        ${escapeHtml(produto.nome)}
+                    </p>
+
+                    <div class="tamanhos-cabecalho">
+
+                        <span>Tamanho</span>
+                        <span>Estoque</span>
+                        <span></span>
+
+                    </div>
+
+                    <div
+                        id="listaTamanhos"
+                        class="lista-tamanhos"
+                    >
+                        ${linhas}
+                    </div>
+
+                    <button
+                        type="button"
+                        class="btn-adicionar-tamanho"
+                        onclick="adicionarLinhaTamanho()"
+                    >
+                        + Adicionar tamanho
+                    </button>
+
+                    <div class="modal-tamanhos-acoes">
+
+                        <button
+                            type="button"
+                            class="btn-cancelar-tamanhos"
+                            onclick="fecharModalTamanhos()"
+                        >
+                            Cancelar
+                        </button>
+
+                        <button
+                            type="button"
+                            class="btn-salvar-tamanhos"
+                            onclick="salvarTamanhos('${id}')"
+                        >
+                            💾 Salvar tamanhos
+                        </button>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        `;
+
+        document.body.appendChild(modal);
+
+    } catch (error) {
+
+        console.error(
+            "Erro ao abrir tamanhos:",
+            error
+        );
+
+        alert("Erro ao abrir os tamanhos.");
+
+    }
+
+}
+
+
+// =========================================================
+// ADICIONAR LINHA DE TAMANHO
+// =========================================================
+
+function adicionarLinhaTamanho() {
+
+    const lista =
+        document.getElementById("listaTamanhos");
+
+    if (!lista) {
+        return;
+    }
+
+    const linha =
+        document.createElement("div");
+
+    linha.className =
+        "tamanho-linha";
+
+    linha.innerHTML = `
+
+        <input
+            type="text"
+            class="tamanho-nome"
+            placeholder="Ex: M ou 40"
+        >
+
+        <input
+            type="number"
+            min="0"
+            class="tamanho-estoque"
+            value="0"
+            placeholder="Estoque"
+        >
+
+        <button
+            type="button"
+            class="btn-delete-tamanho"
+            onclick="this.parentElement.remove()"
+        >
+            🗑️
+        </button>
+
+    `;
+
+    lista.appendChild(linha);
+
+}
+
+
+// =========================================================
+// SALVAR TAMANHOS
+// =========================================================
+
+async function salvarTamanhos(id) {
+
+    const lista =
+        document.getElementById("listaTamanhos");
+
+    if (!lista) {
+        return;
+    }
+
+    const linhas =
+        lista.querySelectorAll(".tamanho-linha");
+
+    const tamanhos = [];
+
+    for (const linha of linhas) {
+
+        const nomeInput =
+            linha.querySelector(".tamanho-nome");
+
+        const estoqueInput =
+            linha.querySelector(".tamanho-estoque");
+
+        const tamanho =
+            nomeInput.value.trim();
+
+        const estoque =
+            Number(estoqueInput.value);
+
+        if (!tamanho) {
+            alert("Preencha todos os tamanhos.");
+            return;
+        }
+
+        if (
+            isNaN(estoque) ||
+            estoque < 0
+        ) {
+            alert(
+                `Estoque inválido para o tamanho ${tamanho}.`
+            );
+            return;
+        }
+
+        tamanhos.push({
+            produto_id: id,
+            tamanho: tamanho,
+            estoque: estoque
+        });
+
+    }
+
+    // Impedir tamanhos duplicados
+    const nomes =
+        tamanhos.map(item =>
+            item.tamanho.toLowerCase()
+        );
+
+    const nomesUnicos =
+        new Set(nomes);
+
+    if (
+        nomes.length !== nomesUnicos.size
+    ) {
+        alert(
+            "Você não pode cadastrar o mesmo tamanho duas vezes."
+        );
+        return;
+    }
+
+    try {
+
+        // Apagar os tamanhos antigos
+        const {
+            error: erroDelete
+        } = await supabaseClient
+            .from("produto_tamanhos")
+            .delete()
+            .eq("produto_id", id);
+
+        if (erroDelete) {
+
+            console.error(
+                "Erro ao apagar tamanhos antigos:",
+                erroDelete
+            );
+
+            alert(
+                "Erro ao atualizar os tamanhos."
+            );
+
+            return;
+        }
+
+        // Se não houver tamanhos,
+        // apenas salva a lista vazia
+        if (tamanhos.length > 0) {
+
+            const {
+                error: erroInsert
+            } = await supabaseClient
+                .from("produto_tamanhos")
+                .insert(tamanhos);
+
+            if (erroInsert) {
+
+                console.error(
+                    "Erro ao salvar tamanhos:",
+                    erroInsert
+                );
+
+                alert(
+                    "Erro ao salvar os tamanhos."
+                );
+
+                return;
+            }
+
+        }
+
+        alert(
+            "Tamanhos e estoques salvos com sucesso!"
+        );
+
+        fecharModalTamanhos();
+
+        await carregarProdutosAdmin();
+
+    } catch (error) {
+
+        console.error(
+            "Erro inesperado ao salvar tamanhos:",
+            error
+        );
+
+        alert(
+            "Ocorreu um erro inesperado."
+        );
+
+    }
+
+}
+
+
+// =========================================================
+// FECHAR MODAL DE TAMANHOS
+// =========================================================
+
+function fecharModalTamanhos() {
+
+    const modal =
+        document.getElementById("modalTamanhos");
+
+    if (modal) {
+        modal.remove();
+    }
+
+}
+
+// =========================================================
+// SALVAR ESTOQUE
+// =========================================================
+
+async function salvarEstoque(id) {
+
+    const input = document.getElementById(`estoque-${id}`);
+
+    if (!input) {
+        alert("Campo de estoque não encontrado.");
+        return;
+    }
+
+    const estoque = Number(input.value);
+
+    if (estoque < 0 || isNaN(estoque)) {
+        alert("Digite um estoque válido.");
+        return;
+    }
+
+    try {
 
         const { error } = await supabaseClient
             .from("produtos")
-            .update({ estoque: novoValor })
+            .update({
+                estoque: estoque
+            })
             .eq("id", id);
 
         if (error) {
-
-            botao.textContent = "Erro!";
-
-            console.error(error);
-
+            console.error("Erro ao salvar estoque:", error);
+            alert("Erro ao salvar estoque.");
             return;
-
         }
 
-        botao.textContent = "Salvo!";
+        alert("Estoque atualizado com sucesso!");
 
-        // Mantém o cache local atualizado também
-        if (produtosCache[id]) {
+    } catch (error) {
 
-            produtosCache[id].estoque = novoValor;
+        console.error(error);
+        alert("Erro inesperado ao salvar estoque.");
+    }
+}
+// =========================================================
+// EXCLUIR PRODUTO
+// =========================================================
 
-        }
+async function excluirProduto(id) {
 
-        setTimeout(() => {
+    const confirmar = confirm(
+        "ATENÇÃO!\n\n" +
+        "Você realmente deseja excluir este produto?\n\n" +
+        "Essa ação não poderá ser desfeita."
+    );
 
-            botao.textContent = "Salvar";
-
-        }, 1500);
-
+    if (!confirmar) {
+        return;
     }
 
+    try {
 
-    /* ================= ADICIONAR / EDITAR PRODUTO ================= */
+        // Verificar se está logado
+        const {
+            data: { session }
+        } = await supabaseClient.auth.getSession();
 
-    function editarProduto(id) {
-
-        const produto = produtosCache[id];
-
-        if (!produto) {
-
+        if (!session) {
+            alert("Sua sessão expirou. Faça login novamente.");
             return;
-
         }
 
-        document.getElementById("prodId").value = produto.id;
 
-        document.getElementById("prodImagemAtual").value =
-            produto.imagem_url || "";
-
-        document.getElementById("prodNome").value = produto.nome;
-
-        document.getElementById("prodCategoria").value = produto.categoria;
-
-        document.getElementById("prodPreco").value = produto.preco;
-
-        document.getElementById("prodPrecoAntigo").value =
-            produto.preco_antigo || "";
-
-        document.getElementById("prodBadge").value = produto.badge || "";
-
-        document.getElementById("prodEstoque").value = produto.estoque;
-
-        document.getElementById("prodFoto").value = "";
-
-        document.getElementById("formTitulo").textContent =
-            "Editar produto";
-
-        document.getElementById("btnSalvarProduto").textContent =
-            "Salvar alterações";
-
-        document.getElementById("btnCancelarEdicao").style.display = "";
-
-        document
-            .getElementById("productForm")
-            .scrollIntoView({ behavior: "smooth" });
-
-    }
+        // Buscar o produto
+        const {
+            data: produto,
+            error: erroProduto
+        } = await supabaseClient
+            .from("produtos")
+            .select("id, nome")
+            .eq("id", id)
+            .single();
 
 
-    function cancelarEdicao() {
+        if (erroProduto || !produto) {
 
-        document.getElementById("productFormEl").reset();
+            console.error(erroProduto);
 
-        document.getElementById("prodId").value = "";
-
-        document.getElementById("prodImagemAtual").value = "";
-
-        document.getElementById("formTitulo").textContent =
-            "Adicionar novo produto";
-
-        document.getElementById("btnSalvarProduto").textContent =
-            "Adicionar produto";
-
-        document.getElementById("btnCancelarEdicao").style.display = "none";
-
-    }
-
-
-    async function salvarProduto(event) {
-
-        event.preventDefault();
-
-        const id = document.getElementById("prodId").value;
-
-        const nome = document.getElementById("prodNome").value.trim();
-
-        const categoria = document.getElementById("prodCategoria").value;
-
-        const preco = parseFloat(document.getElementById("prodPreco").value);
-
-        const precoAntigoRaw =
-            document.getElementById("prodPrecoAntigo").value;
-
-        const precoAntigo = precoAntigoRaw ? parseFloat(precoAntigoRaw) : null;
-
-        const badge = document.getElementById("prodBadge").value || null;
-
-        const estoque = parseInt(document.getElementById("prodEstoque").value, 10);
-
-        const arquivoFoto = document.getElementById("prodFoto").files[0];
-
-        if (!nome || !categoria || isNaN(preco) || isNaN(estoque)) {
-
-            alert("Preencha nome, categoria, preço e estoque.");
+            alert("Produto não encontrado.");
 
             return;
-
         }
 
-        const botaoSalvar = document.getElementById("btnSalvarProduto");
 
-        const textoOriginalBotao = botaoSalvar.textContent;
-
-        botaoSalvar.disabled = true;
-
-        botaoSalvar.textContent = "Salvando...";
-
-
-        // Começa com a imagem que já existia (caso esteja editando
-        // e não tenha escolhido uma foto nova)
-        let imagemUrl =
-            document.getElementById("prodImagemAtual").value || null;
+        // Buscar imagens relacionadas
+        const {
+            data: imagens,
+            error: erroImagens
+        } = await supabaseClient
+            .from("produto_imagens")
+            .select("url")
+            .eq("produto_id", id);
 
 
-        if (arquivoFoto) {
+        if (erroImagens) {
 
-            botaoSalvar.textContent = "Enviando foto...";
+            console.error(erroImagens);
 
-            const nomeArquivo =
-                `${Date.now()}-${arquivoFoto.name.replace(/[^a-zA-Z0-9.\-]/g, "_")}`;
+            alert(
+                "Erro ao localizar as imagens do produto."
+            );
 
-            const { error: erroUpload } = await supabaseClient
-                .storage
-                .from("produtos-fotos")
-                .upload(nomeArquivo, arquivoFoto);
+            return;
+        }
 
-            if (erroUpload) {
 
-                alert("Erro ao enviar a foto: " + erroUpload.message);
+        // Excluir arquivos do Storage
+        if (imagens && imagens.length > 0) {
 
-                botaoSalvar.disabled = false;
+            const caminhos = imagens
+                .map(imagem => imagem.url)
+                .filter(url => url);
 
-                botaoSalvar.textContent = textoOriginalBotao;
 
-                return;
+            if (caminhos.length > 0) {
 
+                const {
+                    error: erroStorage
+                } = await supabaseClient
+                    .storage
+                    .from("produtos")
+                    .remove(caminhos);
+
+
+                if (erroStorage) {
+
+                    console.error(
+                        "Erro ao excluir imagem:",
+                        erroStorage
+                    );
+
+                    alert(
+                        "Não foi possível excluir as imagens do produto."
+                    );
+
+                    return;
+                }
             }
-
-            const { data: urlData } = supabaseClient
-                .storage
-                .from("produtos-fotos")
-                .getPublicUrl(nomeArquivo);
-
-            imagemUrl = urlData.publicUrl;
-
-            botaoSalvar.textContent = "Salvando...";
-
         }
 
 
-        const dadosProduto = {
-
-            nome: nome,
-            categoria: categoria,
-            preco: preco,
-            preco_antigo: precoAntigo,
-            badge: badge,
-            estoque: estoque,
-            imagem_url: imagemUrl
-
-        };
+        // Excluir registros da tabela produto_imagens
+        const {
+            error: erroImagensDelete
+        } = await supabaseClient
+            .from("produto_imagens")
+            .delete()
+            .eq("produto_id", id);
 
 
-        let erroSalvar;
+        if (erroImagensDelete) {
 
-        if (id) {
+            console.error(
+                "Erro ao excluir registros das imagens:",
+                erroImagensDelete
+            );
 
-            const { error } = await supabaseClient
-                .from("produtos")
-                .update(dadosProduto)
-                .eq("id", id);
-
-            erroSalvar = error;
-
-        } else {
-
-            const { error } = await supabaseClient
-                .from("produtos")
-                .insert(dadosProduto);
-
-            erroSalvar = error;
-
-        }
-
-
-        botaoSalvar.disabled = false;
-
-        if (erroSalvar) {
-
-            alert("Erro ao salvar produto: " + erroSalvar.message);
-
-            botaoSalvar.textContent = textoOriginalBotao;
+            alert(
+                "Erro ao excluir as imagens relacionadas ao produto."
+            );
 
             return;
-
         }
 
-        cancelarEdicao();
 
-        carregarProdutosAdmin();
-
-    }
-
-
-    /* ================= EXCLUIR PRODUTO ================= */
-
-    async function excluirProduto(id) {
-
-        const produto = produtosCache[id];
-
-        const nomeProduto = produto ? produto.nome : "este produto";
-
-        const confirmar = confirm(
-            `Tem certeza que quer excluir "${nomeProduto}"? Essa ação não pode ser desfeita.`
-        );
-
-        if (!confirmar) {
-
-            return;
-
-        }
-
-        const { error } = await supabaseClient
+        // Excluir produto
+        const {
+            error: erroDelete
+        } = await supabaseClient
             .from("produtos")
             .delete()
             .eq("id", id);
 
-        if (error) {
 
-            alert("Erro ao excluir: " + error.message);
+        if (erroDelete) {
+
+            console.error(
+                "Erro ao excluir produto:",
+                erroDelete
+            );
+
+            alert(
+                "Erro ao excluir o produto:\n\n" +
+                erroDelete.message
+            );
 
             return;
+        }
+
+
+        // Sucesso
+        alert(
+            `Produto "${produto.nome}" excluído com sucesso!`
+        );
+
+
+        // Atualizar tabela
+        await carregarProdutosAdmin();
+
+
+    } catch (error) {
+
+        console.error(
+            "Erro inesperado ao excluir produto:",
+            error
+        );
+
+        alert(
+            "Ocorreu um erro inesperado ao excluir o produto."
+        );
+    }
+}
+// =========================================================
+// EDITAR PRODUTO
+// =========================================================
+
+async function editarProduto(id) {
+
+    try {
+
+        // -----------------------------------------
+        // BUSCAR PRODUTO
+        // -----------------------------------------
+
+        const {
+            data: produto,
+            error
+        } = await supabaseClient
+            .from("produtos")
+            .select("*")
+            .eq("id", id)
+            .single();
+
+
+        if (error || !produto) {
+
+            console.error(
+                "Erro ao buscar produto:",
+                error
+            );
+
+            alert("Não foi possível encontrar o produto.");
+
+            return;
+        }
+
+
+        // -----------------------------------------
+        // NOVO NOME
+        // -----------------------------------------
+
+        const novoNome = prompt(
+            "Nome do produto:",
+            produto.nome || ""
+        );
+
+        if (novoNome === null) {
+            return;
+        }
+
+
+        if (!novoNome.trim()) {
+
+            alert(
+                "O nome do produto não pode ficar vazio."
+            );
+
+            return;
+        }
+
+
+        // -----------------------------------------
+        // NOVA CATEGORIA
+        // -----------------------------------------
+
+        const novaCategoria = prompt(
+            "Categoria do produto:",
+            produto.categoria || ""
+        );
+
+        if (novaCategoria === null) {
+            return;
+        }
+
+
+        if (!novaCategoria.trim()) {
+
+            alert(
+                "A categoria não pode ficar vazia."
+            );
+
+            return;
+        }
+
+
+        // -----------------------------------------
+        // NOVO PREÇO
+        // -----------------------------------------
+
+        const novoPrecoTexto = prompt(
+            "Preço do produto:",
+            Number(produto.preco || 0)
+                .toFixed(2)
+                .replace(".", ",")
+        );
+
+        if (novoPrecoTexto === null) {
+            return;
+        }
+
+
+        const novoPreco = Number(
+            novoPrecoTexto
+                .replace(",", ".")
+        );
+
+
+        if (
+            isNaN(novoPreco) ||
+            novoPreco < 0
+        ) {
+
+            alert(
+                "Digite um preço válido."
+            );
+
+            return;
+        }
+
+
+        // -----------------------------------------
+        // NOVO ESTOQUE
+        // -----------------------------------------
+
+        const novoEstoqueTexto = prompt(
+            "Quantidade em estoque:",
+            Number(produto.estoque || 0)
+        );
+
+        if (novoEstoqueTexto === null) {
+            return;
+        }
+
+
+        const novoEstoque =
+            Number(novoEstoqueTexto);
+
+
+        if (
+            isNaN(novoEstoque) ||
+            novoEstoque < 0
+        ) {
+
+            alert(
+                "Digite um estoque válido."
+            );
+
+            return;
+        }
+
+
+        // -----------------------------------------
+        // CONFIRMAR
+        // -----------------------------------------
+
+        const confirmar = confirm(
+            "Deseja salvar as alterações deste produto?"
+        );
+
+        if (!confirmar) {
+            return;
+        }
+
+
+        // -----------------------------------------
+        // ATUALIZAR NO SUPABASE
+        // -----------------------------------------
+
+        const {
+            error: erroAtualizacao
+        } = await supabaseClient
+            .from("produtos")
+            .update({
+
+                nome: novoNome.trim(),
+
+                categoria:
+                    novaCategoria.trim(),
+
+                preco:
+                    novoPreco,
+
+                estoque:
+                    novoEstoque
+
+            })
+            .eq("id", id);
+
+
+        if (erroAtualizacao) {
+
+            console.error(
+                "Erro ao editar produto:",
+                erroAtualizacao
+            );
+
+            alert(
+                "Erro ao salvar as alterações."
+            );
+
+            return;
+        }
+
+
+        // -----------------------------------------
+        // SUCESSO
+        // -----------------------------------------
+
+        alert(
+            "Produto atualizado com sucesso!"
+        );
+
+
+        await carregarProdutosAdmin();
+
+
+    } catch (error) {
+
+        console.error(
+            "Erro inesperado ao editar:",
+            error
+        );
+
+        alert(
+            "Ocorreu um erro inesperado."
+        );
+    }
+}
+
+
+
+// =========================================================
+// EXCLUIR PRODUTO
+// =========================================================
+
+async function excluirProduto(id) {
+
+    try {
+
+        // -----------------------------------------
+        // BUSCAR PRODUTO
+        // -----------------------------------------
+
+        const {
+            data: produto,
+            error: erroProduto
+        } = await supabaseClient
+            .from("produtos")
+            .select("id, nome")
+            .eq("id", id)
+            .single();
+
+
+        if (
+            erroProduto ||
+            !produto
+        ) {
+
+            console.error(
+                "Erro ao encontrar produto:",
+                erroProduto
+            );
+
+            alert(
+                "Produto não encontrado."
+            );
+
+            return;
+        }
+
+
+        // -----------------------------------------
+        // CONFIRMAR EXCLUSÃO
+        // -----------------------------------------
+
+        const confirmar = confirm(
+            `ATENÇÃO!\n\n` +
+            `Você está prestes a excluir:\n\n` +
+            `"${produto.nome}"\n\n` +
+            `Essa ação não poderá ser desfeita.\n\n` +
+            `Deseja realmente excluir?`
+        );
+
+
+        if (!confirmar) {
+            return;
+        }
+
+
+        // -----------------------------------------
+        // BUSCAR IMAGENS
+        // -----------------------------------------
+
+        const {
+            data: imagens,
+            error: erroImagens
+        } = await supabaseClient
+            .from("produto_imagens")
+            .select("url")
+            .eq("produto_id", id);
+
+
+        if (erroImagens) {
+
+            console.error(
+                "Erro ao buscar imagens:",
+                erroImagens
+            );
+
+            alert(
+                "Não foi possível preparar a exclusão."
+            );
+
+            return;
+        }
+
+
+        // -----------------------------------------
+        // EXCLUIR ARQUIVOS DO STORAGE
+        // -----------------------------------------
+
+        if (
+            imagens &&
+            imagens.length > 0
+        ) {
+
+            const caminhos = imagens
+                .map(imagem => imagem.url)
+                .filter(Boolean);
+
+
+            if (caminhos.length > 0) {
+
+                const {
+                    error: erroStorage
+                } = await supabaseClient
+                    .storage
+                    .from("produtos")
+                    .remove(caminhos);
+
+
+                if (erroStorage) {
+
+                    console.error(
+                        "Erro ao excluir imagens:",
+                        erroStorage
+                    );
+
+                    alert(
+                        "Não foi possível excluir as imagens do produto."
+                    );
+
+                    return;
+                }
+            }
+        }
+
+
+        // -----------------------------------------
+        // EXCLUIR REGISTROS DAS IMAGENS
+        // -----------------------------------------
+
+        const {
+            error: erroImagensDelete
+        } = await supabaseClient
+            .from("produto_imagens")
+            .delete()
+            .eq("produto_id", id);
+
+
+        if (erroImagensDelete) {
+
+            console.error(
+                "Erro ao excluir registros das imagens:",
+                erroImagensDelete
+            );
+
+            alert(
+                "Erro ao excluir as imagens do produto."
+            );
+
+            return;
+        }
+
+
+        // -----------------------------------------
+        // EXCLUIR PRODUTO
+        // -----------------------------------------
+
+        const {
+            error: erroDelete
+        } = await supabaseClient
+            .from("produtos")
+            .delete()
+            .eq("id", id);
+
+
+        if (erroDelete) {
+
+            console.error(
+                "Erro ao excluir produto:",
+                erroDelete
+            );
+
+            alert(
+                "Erro ao excluir o produto."
+            );
+
+            return;
+        }
+
+
+        // -----------------------------------------
+        // SUCESSO
+        // -----------------------------------------
+
+        alert(
+            "Produto excluído com sucesso!"
+        );
+
+
+        await carregarProdutosAdmin();
+
+
+    } catch (error) {
+
+        console.error(
+            "Erro inesperado ao excluir:",
+            error
+        );
+
+        alert(
+            "Ocorreu um erro inesperado."
+        );
+    }
+}
+
+
+// =========================================================
+// GERAR NOME SEGURO PARA A IMAGEM
+// =========================================================
+
+function gerarNomeArquivoSeguro(nomeOriginal) {
+
+    const extensao =
+        nomeOriginal.split(".").pop().toLowerCase();
+
+    const nomeSemExtensao =
+        nomeOriginal
+            .replace(/\.[^/.]+$/, "")
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .replace(/[^a-zA-Z0-9]+/g, "-")
+            .replace(/^-+|-+$/g, "")
+            .toLowerCase();
+
+    const identificador =
+        Date.now() + "-" + Math.random().toString(36).substring(2, 8);
+
+    return `${nomeSemExtensao}-${identificador}.${extensao}`;
+}
+// =========================================================
+// OPÇÕES DE TAMANHO PARA CADASTRO
+// =========================================================
+
+const TAMANHOS_POR_CATEGORIA = {
+
+    roupas: [
+        "PP",
+        "P",
+        "M",
+        "G",
+        "GG",
+        "XG"
+    ],
+
+    botas: [
+        "34",
+        "35",
+        "36",
+        "37",
+        "38",
+        "39",
+        "40",
+        "41",
+        "42",
+        "43",
+        "44",
+        "45"
+    ],
+
+    chapeus: [
+        "54",
+        "56",
+        "58",
+        "60",
+        "62"
+    ],
+
+    acessorios: [
+        "Único"
+    ]
+
+};
+
+
+// =========================================================
+// MOSTRAR TAMANHOS DE ACORDO COM A CATEGORIA
+// =========================================================
+
+function atualizarOpcoesTamanho() {
+
+    const categoria =
+        document.getElementById("novaCategoria").value;
+
+    const area =
+        document.getElementById("opcoesTamanhosCadastro");
+
+    const total =
+        document.getElementById("estoqueTotalCadastro");
+
+    if (!area) {
+        return;
+    }
+
+    if (!categoria) {
+
+        area.innerHTML = `
+            <p style="color:#888;">
+                Selecione primeiro uma categoria.
+            </p>
+        `;
+
+        if (total) {
+            total.textContent =
+                "Estoque total: 0";
+        }
+
+        return;
+    }
+
+    const tamanhos =
+        TAMANHOS_POR_CATEGORIA[categoria] || [];
+
+    area.innerHTML = tamanhos.map(tamanho => `
+
+        <div
+            class="cadastro-tamanho-item"
+            style="
+                display:flex;
+                align-items:center;
+                gap:10px;
+                margin-bottom:8px;
+            "
+        >
+
+            <label
+                style="
+                    display:flex;
+                    align-items:center;
+                    gap:8px;
+                    width:80px;
+                    color:#fff;
+                    cursor:pointer;
+                "
+            >
+
+                <input
+                    type="checkbox"
+                    class="tamanho-checkbox"
+                    data-tamanho="${escapeHtml(tamanho)}"
+                    onchange="atualizarEstoqueTotalCadastro()"
+                >
+
+                <strong>
+                    ${escapeHtml(tamanho)}
+                </strong>
+
+            </label>
+
+            <input
+                type="number"
+                min="0"
+                value="0"
+                class="cadastro-tamanho-estoque"
+                data-tamanho-estoque="${escapeHtml(tamanho)}"
+                disabled
+                oninput="atualizarEstoqueTotalCadastro()"
+                style="
+                    width:120px;
+                    padding:8px;
+                    background:#111;
+                    border:1px solid #333;
+                    color:#fff;
+                    border-radius:4px;
+                "
+            >
+
+        </div>
+
+    `).join("");
+
+    // Ativar/desativar campo de estoque
+    document
+        .querySelectorAll(".tamanho-checkbox")
+        .forEach(checkbox => {
+
+            checkbox.addEventListener(
+                "change",
+                function () {
+
+                    const tamanho =
+                        this.dataset.tamanho;
+
+                    const estoqueInput =
+                        document.querySelector(
+                            `[data-tamanho-estoque="${CSS.escape(tamanho)}"]`
+                        );
+
+                    if (estoqueInput) {
+
+                        estoqueInput.disabled =
+                            !this.checked;
+
+                        if (!this.checked) {
+                            estoqueInput.value = 0;
+                        }
+
+                    }
+
+                    atualizarEstoqueTotalCadastro();
+
+                }
+            );
+
+        });
+
+    atualizarEstoqueTotalCadastro();
+}
+
+
+// =========================================================
+// CALCULAR ESTOQUE TOTAL
+// =========================================================
+
+function atualizarEstoqueTotalCadastro() {
+
+    const checkboxes =
+        document.querySelectorAll(
+            ".tamanho-checkbox:checked"
+        );
+
+    let total = 0;
+
+    checkboxes.forEach(checkbox => {
+
+        const tamanho =
+            checkbox.dataset.tamanho;
+
+        const input =
+            document.querySelector(
+                `[data-tamanho-estoque="${CSS.escape(tamanho)}"]`
+            );
+
+        if (input) {
+
+            const quantidade =
+                Number(input.value);
+
+            if (!isNaN(quantidade)) {
+                total += quantidade;
+            }
 
         }
 
-        carregarProdutosAdmin();
+    });
+
+    const elemento =
+        document.getElementById(
+            "estoqueTotalCadastro"
+        );
+
+    if (elemento) {
+
+        elemento.textContent =
+            `Estoque total: ${total}`;
 
     }
 
+}
 
-    /* ================= INICIALIZAÇÃO ================= */
 
-    async function initAdmin() {
+// =========================================================
+// PEGAR TAMANHOS SELECIONADOS
+// =========================================================
 
-        const { data: { session } } =
-            await supabaseClient.auth.getSession();
+function obterTamanhosCadastro() {
+
+    const checkboxes =
+        document.querySelectorAll(
+            ".tamanho-checkbox:checked"
+        );
+
+    const tamanhos = [];
+
+    checkboxes.forEach(checkbox => {
+
+        const tamanho =
+            checkbox.dataset.tamanho;
+
+        const input =
+            document.querySelector(
+                `[data-tamanho-estoque="${CSS.escape(tamanho)}"]`
+            );
+
+        const estoque =
+            Number(input?.value || 0);
+
+        tamanhos.push({
+            tamanho: tamanho,
+            estoque: estoque
+        });
+
+    });
+
+    return tamanhos;
+}
+
+// =========================================================
+// CADASTRAR NOVO PRODUTO
+// =========================================================
+
+async function cadastrarProduto(event) {
+    event.preventDefault();
+
+    const msg = document.getElementById("msgCadastro");
+
+    const nome = document.getElementById("novoNome").value.trim();
+    const categoria = document.getElementById("novaCategoria").value;
+    const preco = Number(document.getElementById("novoPreco").value);
+    const imagemInput = document.getElementById("novaImagem");
+
+    // ================================
+    // TAMANHOS E ESTOQUE
+    // ================================
+
+    const tamanhosSelecionados = obterTamanhosCadastro();
+
+    let estoque = 0;
+
+    tamanhosSelecionados.forEach(item => {
+        estoque += Number(item.estoque || 0);
+    });
+
+    // ================================
+    // VALIDAÇÕES
+    // ================================
+
+    if (!nome) {
+        msg.textContent = "Digite o nome do produto.";
+        msg.style.color = "#ff5555";
+        return;
+    }
+
+    if (!categoria) {
+        msg.textContent = "Selecione uma categoria.";
+        msg.style.color = "#ff5555";
+        return;
+    }
+
+    if (isNaN(preco) || preco < 0) {
+        msg.textContent = "Digite um preço válido.";
+        msg.style.color = "#ff5555";
+        return;
+    }
+
+    if (tamanhosSelecionados.length === 0) {
+        msg.textContent = "Selecione pelo menos um tamanho.";
+        msg.style.color = "#ff5555";
+        return;
+    }
+
+    for (const item of tamanhosSelecionados) {
+        if (isNaN(item.estoque) || item.estoque < 0) {
+            msg.textContent = `Digite um estoque válido para o tamanho ${item.tamanho}.`;
+            msg.style.color = "#ff5555";
+            return;
+        }
+    }
+
+    if (!imagemInput || !imagemInput.files || !imagemInput.files[0]) {
+        msg.textContent = "Selecione uma imagem.";
+        msg.style.color = "#ff5555";
+        return;
+    }
+
+    const imagem = imagemInput.files[0];
+
+    try {
+
+        msg.textContent = "Cadastrando produto...";
+        msg.style.color = "#d4af37";
+
+        // ================================
+        // VERIFICAR LOGIN
+        // ================================
+
+        const {
+            data: { session }
+        } = await supabaseClient.auth.getSession();
+
+        if (!session) {
+            msg.textContent = "Sua sessão expirou. Faça login novamente.";
+            msg.style.color = "#ff5555";
+            return;
+        }
+
+        // ================================
+        // UPLOAD DA IMAGEM
+        // ================================
+
+        const nomeArquivo =
+            `${Date.now()}-${imagem.name.replace(/[^a-zA-Z0-9.-]/g, "_")}`;
+
+        const caminhoImagem = `Fotos/${nomeArquivo}`;
+
+        const { error: uploadError } = await supabaseClient
+            .storage
+            .from("produtos")
+            .upload(caminhoImagem, imagem);
+
+        if (uploadError) {
+            console.error("Erro ao enviar imagem:", uploadError);
+
+            msg.textContent = "Erro ao enviar a imagem.";
+            msg.style.color = "#ff5555";
+            return;
+        }
+
+        // ================================
+        // PEGAR URL DA IMAGEM
+        // ================================
+
+        const { data: imagemPublica } = supabaseClient
+            .storage
+            .from("produtos")
+            .getPublicUrl(caminhoImagem);
+
+        const imagemUrl = imagemPublica.publicUrl;
+
+        // ================================
+        // CADASTRAR PRODUTO
+        // ================================
+
+        const { data: produtoCriado, error: produtoError } =
+            await supabaseClient
+                .from("produtos")
+                .insert([{
+                    nome: nome,
+                    categoria: categoria,
+                    preco: preco,
+                    estoque: estoque,
+                    imagem_url: imagemUrl
+                }])
+                .select()
+                .single();
+
+        if (produtoError) {
+            console.error("Erro ao cadastrar produto:", produtoError);
+
+            // Tentar remover a imagem caso o cadastro falhe
+            await supabaseClient
+                .storage
+                .from("produtos")
+                .remove([caminhoImagem]);
+
+            msg.textContent = "Erro ao cadastrar o produto.";
+            msg.style.color = "#ff5555";
+            return;
+        }
+
+        // ================================
+        // CADASTRAR IMAGEM NA TABELA
+        // produto_imagens
+        // ================================
+
+        const { error: imagemTabelaError } = await supabaseClient
+            .from("produto_imagens")
+            .insert([{
+                produto_id: produtoCriado.id,
+                url: imagemUrl,
+                ordem: 0
+            }]);
+
+        if (imagemTabelaError) {
+            console.error(
+                "Erro ao cadastrar imagem na tabela:",
+                imagemTabelaError
+            );
+
+            msg.textContent =
+                "Produto cadastrado, mas houve erro ao salvar a imagem.";
+            msg.style.color = "#ff9900";
+
+            return;
+        }
+
+        // ================================
+        // CADASTRAR TAMANHOS
+        // ================================
+
+        const dadosTamanhos = tamanhosSelecionados.map(item => ({
+            produto_id: produtoCriado.id,
+            tamanho: item.tamanho,
+            estoque: Number(item.estoque)
+        }));
+
+        const { error: tamanhosError } = await supabaseClient
+            .from("produto_tamanhos")
+            .insert(dadosTamanhos);
+
+        if (tamanhosError) {
+            console.error(
+                "Erro ao cadastrar tamanhos:",
+                tamanhosError
+            );
+
+            msg.textContent =
+                "Produto cadastrado, mas houve erro ao salvar os tamanhos.";
+            msg.style.color = "#ff9900";
+
+            return;
+        }
+
+        // ================================
+        // LIMPAR FORMULÁRIO
+        // ================================
+
+        document.getElementById("formNovoProduto").reset();
+
+        document.getElementById("opcoesTamanhosCadastro").innerHTML =
+            `<p style="color:#888;">Selecione primeiro uma categoria.</p>`;
+
+        document.getElementById("estoqueTotalCadastro").textContent =
+            "Estoque total: 0";
+
+        // ================================
+        // SUCESSO
+        // ================================
+
+        msg.textContent = "Produto cadastrado com sucesso!";
+        msg.style.color = "#4CAF50";
+
+        // Atualizar tabela
+        await carregarProdutosAdmin();
+
+    } catch (error) {
+
+        console.error("Erro inesperado:", error);
+
+        msg.textContent =
+            "Ocorreu um erro inesperado ao cadastrar o produto.";
+
+        msg.style.color = "#ff5555";
+    }
+}
+
+
+// =========================================================
+// INICIALIZAÇÃO DO PAINEL
+// =========================================================
+
+async function initAdmin() {
+    try {
+        const {
+            data: { session },
+            error
+        } = await supabaseClient.auth.signOut();
+
+        if (error) {
+            console.error("Erro ao verificar sessão:", error);
+            return;
+        }
+
+        if (session) {
+            mostrarPainel();
+        } else {
+            document.getElementById("loginScreen").style.display = "flex";
+            document.getElementById("adminPanel").style.display = "none";
+        }
+
+    } catch (error) {
+        console.error("Erro na inicialização:", error);
+    }
+}
+
+
+// =========================================================
+// OBSERVAR ALTERAÇÕES DE LOGIN
+// =========================================================
+
+supabaseClient.auth.onAuthStateChange(
+    (event, session) => {
+
+        console.log(
+            "Alteração de autenticação:",
+            event
+        );
 
         if (session) {
 
-            mostrarPainel();
+            document.getElementById("loginScreen").style.display = "none";
+            document.getElementById("adminPanel").style.display = "block";
 
         } else {
 
             document.getElementById("loginScreen").style.display = "flex";
-
+            document.getElementById("adminPanel").style.display = "none";
         }
-
     }
+);
 
+
+// =========================================================
+// INICIAR
+// =========================================================
+
+document.addEventListener("DOMContentLoaded", () => {
     initAdmin();
+});
