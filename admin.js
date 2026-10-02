@@ -6,6 +6,50 @@
 // LOGIN
 // =========================================================
 
+let adminAutorizado = false;
+let verificacaoAdmin = 0;
+let revisaoPedidos = 0;
+let paginaPedidos = 0;
+const PEDIDOS_POR_PAGINA = 20;
+const pedidosEmConfirmacao = new Set();
+
+function ocultarPainel() {
+    adminAutorizado = false;
+    revisaoPedidos++;
+    document.getElementById("adminPanel").style.display = "none";
+    document.getElementById("loginScreen").style.display = "flex";
+    document.getElementById("listaPedidosAdmin").replaceChildren();
+    document.getElementById("pedidosMensagem").textContent = "";
+    document.getElementById("modalTamanhos")?.remove();
+}
+
+async function verificarAcessoAdmin(session) {
+    const verificacao = ++verificacaoAdmin;
+    ocultarPainel();
+    if (!session) return false;
+
+    try {
+        // A autorização vem do servidor e de app_metadata, que clientes não podem editar.
+        const { data, error } = await supabaseClient.rpc("jk_e_admin");
+        if (verificacao !== verificacaoAdmin) return false;
+        if (error || data !== true) {
+            document.getElementById("loginError").textContent = error
+                ? "Não foi possível verificar o acesso administrativo. Tente novamente."
+                : "Esta conta não tem acesso administrativo. Entre com uma conta da loja.";
+            return false;
+        }
+        adminAutorizado = true;
+        document.getElementById("loginError").textContent = "";
+        mostrarPainel();
+        return true;
+    } catch (error) {
+        if (verificacao === verificacaoAdmin) {
+            document.getElementById("loginError").textContent = "Não foi possível verificar o acesso administrativo. Tente novamente.";
+        }
+        return false;
+    }
+}
+
 async function fazerLogin() {
     const email = document.getElementById("loginEmail").value.trim();
     const senha = document.getElementById("loginPassword").value;
@@ -35,7 +79,8 @@ async function fazerLogin() {
             return;
         }
 
-        mostrarPainel();
+        document.getElementById("loginPassword").value = "";
+        await verificarAcessoAdmin(data.session);
 
     } catch (err) {
         console.error("Erro inesperado no login:", err);
@@ -49,17 +94,17 @@ async function fazerLogin() {
 // =========================================================
 
 async function fazerLogout() {
+    verificacaoAdmin++;
+    ocultarPainel();
     try {
-        await supabaseClient.auth.signOut();
-
-        document.getElementById("adminPanel").style.display = "none";
-        document.getElementById("loginScreen").style.display = "flex";
+        const { error } = await supabaseClient.auth.signOut();
+        if (error) throw error;
 
         document.getElementById("loginEmail").value = "";
         document.getElementById("loginPassword").value = "";
 
     } catch (error) {
-        console.error("Erro ao sair:", error);
+        document.getElementById("loginError").textContent = "Não foi possível encerrar a sessão. Tente sair novamente.";
     }
 }
 
@@ -69,12 +114,13 @@ async function fazerLogout() {
 // =========================================================
 
 function mostrarPainel() {
-
+    if (!adminAutorizado) return;
     document.getElementById("loginScreen").style.display = "none";
     document.getElementById("adminPanel").style.display = "block";
 
     carregarProdutosAdmin();
     carregarDashboardEstoque();
+    carregarPedidosAdmin();
 
 }
 
@@ -113,6 +159,154 @@ function formatarPreco(valor) {
         style: "currency",
         currency: "BRL"
     });
+}
+
+// =========================================================
+// PEDIDOS: DADOS SALVOS NO MOMENTO DA COMPRA
+// =========================================================
+
+function formatarDataPedido(valor) {
+    const data = new Date(valor);
+    return Number.isNaN(data.getTime()) ? "Data indisponível" : data.toLocaleString("pt-BR");
+}
+
+function montarPedidoAdmin(pedido) {
+    const cliente = pedido.cliente || {};
+    const endereco = pedido.endereco || {};
+    const itens = Array.isArray(pedido.itens) ? pedido.itens : [];
+    const aguardando = pedido.status === "aguardando_confirmacao";
+    const status = aguardando ? "Aguardando confirmação" : pedido.status === "confirmado" ? "Venda confirmada" : "Status indisponível";
+    const enderecoLinha = [endereco.logradouro, endereco.numero, endereco.complemento].filter(Boolean).join(", ");
+    const cidadeLinha = [endereco.bairro, endereco.cidade, endereco.uf].filter(Boolean).join(" · ");
+    return `
+        <article class="pedido-card">
+            <div class="pedido-resumo">
+                <div>
+                    <h3>${escapeHtml(cliente.nome || "Cliente")}</h3>
+                    <p class="pedido-id">Pedido ${escapeHtml(pedido.id)}</p>
+                    <p>${escapeHtml(formatarDataPedido(pedido.criado_em))}</p>
+                </div>
+                <div class="pedido-valor">
+                    <strong>${formatarPreco(pedido.total)}</strong>
+                    <span class="pedido-status ${aguardando ? "pedido-pendente" : "pedido-confirmado"}">${status}</span>
+                </div>
+            </div>
+            <details class="pedido-detalhes">
+                <summary>Ver dados do cliente e itens</summary>
+                <div class="pedido-dados">
+                    <div>
+                        <h4>Cliente</h4>
+                        <dl>
+                            <dt>Nome</dt><dd>${escapeHtml(cliente.nome || "—")}</dd>
+                            <dt>CPF</dt><dd>${escapeHtml(cliente.cpf || "—")}</dd>
+                            <dt>E-mail</dt><dd>${escapeHtml(cliente.email || "—")}</dd>
+                            <dt>Telefone</dt><dd>${escapeHtml(cliente.telefone || "—")}</dd>
+                        </dl>
+                    </div>
+                    <div>
+                        <h4>Endereço informado</h4>
+                        <p>${escapeHtml(enderecoLinha || "—")}</p>
+                        <p>${escapeHtml(cidadeLinha || "—")}</p>
+                        <p>CEP: ${escapeHtml(endereco.cep || "—")}</p>
+                    </div>
+                </div>
+                <div class="pedido-tabela-wrapper">
+                    <table class="pedido-itens">
+                        <caption>Itens do pedido</caption>
+                        <thead><tr><th>Produto</th><th>Tamanho</th><th>Qtd.</th><th>Unitário</th><th>Subtotal</th></tr></thead>
+                        <tbody>${itens.map(item => `<tr>
+                            <td>${escapeHtml(item.nome)}</td>
+                            <td>${escapeHtml(item.tamanho || "Único")}</td>
+                            <td>${escapeHtml(item.quantidade)}</td>
+                            <td>${formatarPreco(item.preco_unitario)}</td>
+                            <td>${formatarPreco(item.subtotal)}</td>
+                        </tr>`).join("")}</tbody>
+                    </table>
+                </div>
+                <p class="pedido-fiscal">Nota fiscal: ${pedido.fiscal_status === "nao_configurado" ? "aguardando configuração do emissor fiscal." : "situação fiscal indisponível; confira no emissor antes de informar o cliente."}</p>
+                ${pedido.confirmado_em ? `<p>Venda confirmada em ${escapeHtml(formatarDataPedido(pedido.confirmado_em))}.</p>` : ""}
+            </details>
+            ${aguardando ? `<div class="pedido-acoes">
+                <p>Confirme somente após verificar a venda e o pagamento. O estoque será baixado.</p>
+                <button class="btn" type="button" data-confirmar-pedido="${escapeHtml(pedido.id)}">Confirmar venda</button>
+            </div>` : ""}
+        </article>`;
+}
+
+async function carregarPedidosAdmin() {
+    if (!adminAutorizado) return;
+    const revisao = ++revisaoPedidos;
+    const lista = document.getElementById("listaPedidosAdmin");
+    const mensagem = document.getElementById("pedidosMensagem");
+    const anterior = document.getElementById("pedidosAnterior");
+    const proxima = document.getElementById("pedidosProxima");
+    mensagem.textContent = "Carregando pedidos…";
+    lista.replaceChildren();
+    anterior.disabled = true;
+    proxima.disabled = true;
+    try {
+        let consulta = supabaseClient.from("jk_pedidos")
+            .select("id,cliente,endereco,itens,total,status,fiscal_status,criado_em,confirmado_em", { count: "exact" })
+            .order("criado_em", { ascending: false })
+            .order("id", { ascending: false });
+        const filtro = document.getElementById("filtroPedidos").value;
+        if (filtro) consulta = consulta.eq("status", filtro);
+        const { data, count, error } = await consulta.range(paginaPedidos * PEDIDOS_POR_PAGINA, (paginaPedidos + 1) * PEDIDOS_POR_PAGINA - 1);
+        if (!adminAutorizado || revisao !== revisaoPedidos) return;
+        if (error) throw error;
+        const pedidos = data || [];
+        if (!pedidos.length && paginaPedidos > 0) {
+            paginaPedidos--;
+            return carregarPedidosAdmin();
+        }
+        lista.innerHTML = pedidos.map(montarPedidoAdmin).join("");
+        lista.querySelectorAll("[data-confirmar-pedido]").forEach(botao => {
+            botao.disabled = pedidosEmConfirmacao.has(botao.dataset.confirmarPedido);
+            botao.addEventListener("click", () => confirmarPedidoAdmin(botao.dataset.confirmarPedido, botao));
+        });
+        mensagem.textContent = pedidos.length ? `${count ?? pedidos.length} pedido(s) encontrado(s).` : "Nenhum pedido encontrado.";
+        document.getElementById("pedidosPagina").textContent = `Página ${paginaPedidos + 1}`;
+        anterior.disabled = paginaPedidos === 0;
+        proxima.disabled = (paginaPedidos + 1) * PEDIDOS_POR_PAGINA >= (count ?? pedidos.length);
+    } catch (error) {
+        if (!adminAutorizado || revisao !== revisaoPedidos) return;
+        mensagem.textContent = "Não foi possível carregar os pedidos. Verifique a conexão e a configuração do banco de dados.";
+    }
+}
+
+function mudarPaginaPedidos(direcao) {
+    if (!adminAutorizado) return;
+    paginaPedidos = Math.max(0, paginaPedidos + direcao);
+    carregarPedidosAdmin();
+}
+
+async function confirmarPedidoAdmin(id, botao) {
+    if (!adminAutorizado || pedidosEmConfirmacao.has(id)) return;
+    if (!confirm("A venda e o pagamento deste pedido já foram conferidos? Ao confirmar, o estoque será baixado. Esta ação não realiza cobrança nem emite nota fiscal.")) return;
+    const verificacao = verificacaoAdmin;
+    pedidosEmConfirmacao.add(id);
+    botao.disabled = true;
+    botao.textContent = "Confirmando…";
+    const mensagem = document.getElementById("pedidosMensagem");
+    try {
+        const { data, error } = await supabaseClient.rpc("jk_confirmar_pedido", { p_pedido_id: id });
+        if (!adminAutorizado || verificacao !== verificacaoAdmin) return;
+        if (error) throw error;
+        if (!data || data.status !== "confirmado") throw new Error("Confirmação não retornou um pedido confirmado.");
+        await carregarPedidosAdmin();
+        if (!adminAutorizado || verificacao !== verificacaoAdmin) return;
+        mensagem.textContent = "Venda confirmada e estoque atualizado. A emissão de nota fiscal ainda depende da configuração do emissor.";
+        carregarProdutosAdmin();
+        carregarDashboardEstoque();
+    } catch (error) {
+        if (adminAutorizado && verificacao === verificacaoAdmin) {
+            mensagem.textContent = "Não foi possível confirmar a venda. Atualize os pedidos e verifique o estoque antes de tentar novamente.";
+        }
+    } finally {
+        pedidosEmConfirmacao.delete(id);
+        botao.disabled = false;
+        botao.textContent = "Confirmar venda";
+    }
 }
 
 
@@ -2060,26 +2254,23 @@ async function cadastrarProduto(event) {
 // =========================================================
 
 async function initAdmin() {
+    ocultarPainel();
     try {
         const {
             data: { session },
             error
-        } = await supabaseClient.auth.signOut();
+        } = await supabaseClient.auth.getSession();
 
         if (error) {
-            console.error("Erro ao verificar sessão:", error);
+            document.getElementById("loginError").textContent = "Não foi possível verificar a sessão. Entre novamente.";
             return;
         }
 
-        if (session) {
-            mostrarPainel();
-        } else {
-            document.getElementById("loginScreen").style.display = "flex";
-            document.getElementById("adminPanel").style.display = "none";
-        }
+        await verificarAcessoAdmin(session);
 
     } catch (error) {
-        console.error("Erro na inicialização:", error);
+        ocultarPainel();
+        document.getElementById("loginError").textContent = "Não foi possível verificar a sessão. Entre novamente.";
     }
 }
 
@@ -2091,21 +2282,10 @@ async function initAdmin() {
 supabaseClient.auth.onAuthStateChange(
     (event, session) => {
 
-        console.log(
-            "Alteração de autenticação:",
-            event
-        );
-
-        if (session) {
-
-            document.getElementById("loginScreen").style.display = "none";
-            document.getElementById("adminPanel").style.display = "block";
-
-        } else {
-
-            document.getElementById("loginScreen").style.display = "flex";
-            document.getElementById("adminPanel").style.display = "none";
-        }
+        verificacaoAdmin++;
+        ocultarPainel();
+        // Não aguardar chamadas Supabase dentro do callback de autenticação.
+        if (session) setTimeout(() => verificarAcessoAdmin(session), 0);
     }
 );
 

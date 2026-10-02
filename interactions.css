@@ -1,0 +1,95 @@
+/* Interações visuais: mantém as cores existentes e só acrescenta movimento. */
+.scroll-progress {
+    position: fixed;
+    inset: 0 0 auto;
+    height: 3px;
+    width: 0;
+    background: var(--gold, #c9982e);
+    z-index: 2000;
+    pointer-events: none;
+    transition: width .08s linear;
+}
+
+header,
+.navbar,
+.logo {
+    transition: min-height .35s ease, padding .35s ease, height .35s ease,
+        box-shadow .35s ease, transform .35s ease;
+}
+
+header.is-scrolled {
+    box-shadow: 0 8px 28px rgba(0, 0, 0, .24);
+}
+
+header.is-scrolled .navbar {
+    min-height: 66px;
+    padding-top: 8px;
+    padding-bottom: 8px;
+}
+
+header.is-scrolled .logo {
+    height: 50px;
+}
+
+#storefront.reveal-ready .reveal-on-scroll {
+    opacity: 0;
+    transform: translateY(24px);
+    transition: opacity .65s ease, transform .65s cubic-bezier(.2, .8, .2, 1);
+    will-change: opacity, transform;
+}
+
+.reveal-on-scroll.is-visible {
+    opacity: 1;
+    transform: none;
+}
+
+.product.reveal-on-scroll:nth-child(2) { transition-delay: .05s; }
+.product.reveal-on-scroll:nth-child(3) { transition-delay: .1s; }
+.product.reveal-on-scroll:nth-child(4) { transition-delay: .15s; }
+
+.back-to-top {
+    position: fixed;
+    right: 22px;
+    bottom: 22px;
+    width: 44px;
+    height: 44px;
+    border: 1px solid var(--gold-dark, #8a6419);
+    border-radius: 50%;
+    background: var(--black-2, #0d0d0d);
+    color: var(--gold-light, #f4d27a);
+    cursor: pointer;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(12px);
+    transition: opacity .25s ease, visibility .25s ease, transform .25s ease,
+        background .25s ease;
+    z-index: 900;
+}
+
+.back-to-top.is-visible {
+    opacity: 1;
+    visibility: visible;
+    transform: none;
+}
+
+.back-to-top:hover,
+.back-to-top:focus-visible {
+    background: var(--card, #111);
+    outline: 2px solid var(--gold, #c9982e);
+    outline-offset: 3px;
+}
+
+@media (max-width: 700px) {
+    .back-to-top { right: 14px; bottom: 14px; }
+    .reveal-on-scroll { transform: translateY(16px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        scroll-behavior: auto !important;
+        transition-duration: .01ms !important;
+        animation-duration: .01ms !important;
+        animation-iteration-count: 1 !important;
+    }
+    .reveal-on-scroll { opacity: 1; transform: none; }
+}

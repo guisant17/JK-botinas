@@ -1,0 +1,48 @@
+.admin-login-box label { display: block; text-align: left; margin: 14px 0 6px; font-size: 14px; color: #ddd; }
+.admin-voltar-loja { display: inline-block; margin-top: 18px; color: var(--gold-light); }
+.pedidos-admin { margin-bottom: 36px; padding: 26px; border: 1px solid #333; border-radius: 12px; background: #111; }
+.pedidos-cabecalho, .pedido-resumo, .pedido-acoes, .pedidos-paginacao { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+.pedidos-cabecalho h2 { margin: 4px 0 10px; color: var(--gold-light); }
+.pedidos-cabecalho p, .pedido-card p { color: #bbb; font-size: 14px; line-height: 1.6; margin: 4px 0; }
+.pedidos-cabecalho .pedidos-sobretitulo { color: var(--gold); font-size: 12px; text-transform: uppercase; letter-spacing: .12em; }
+.pedidos-cabecalho .btn { flex-shrink: 0; }
+.pedidos-aviso-fiscal { margin: 22px 0; padding: 14px 16px; background: #292113; border: 1px solid #705829; color: #f1d5a0; font-size: 14px; line-height: 1.6; border-radius: 6px; }
+.pedidos-filtros { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+.pedidos-filtros select { padding: 10px 12px; border: 1px solid #555; background: #0a0a0a; color: #fff; border-radius: 5px; max-width: 100%; }
+.pedidos-mensagem { min-height: 24px; color: #d9ccac; font-size: 14px; line-height: 1.6; margin: 12px 0; }
+.pedidos-lista { display: grid; gap: 16px; }
+.pedido-card { padding: 20px; border: 1px solid #333; border-radius: 8px; background: #0a0a0a; }
+.pedido-card h3 { margin: 0 0 5px; font-size: 19px; color: #fff; }
+.pedido-id { overflow-wrap: anywhere; }
+.pedido-valor { text-align: right; flex-shrink: 0; }
+.pedido-valor strong { display: block; color: var(--gold-light); font-size: 21px; margin-bottom: 7px; }
+.pedido-status { display: inline-block; padding: 4px 10px; border-radius: 20px; font-size: 12px; line-height: 1.6; }
+.pedido-pendente { background: #322712; color: #f5d690; }
+.pedido-confirmado { background: #162d21; color: #9edeb4; }
+.pedido-detalhes { margin-top: 17px; border-top: 1px solid #333; }
+.pedido-detalhes summary { padding: 15px 0; cursor: pointer; color: var(--gold-light); font-size: 14px; }
+.pedido-dados { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 16px; }
+.pedido-dados h4 { margin: 5px 0 12px; color: #eee; }
+.pedido-dados dl { display: grid; grid-template-columns: auto 1fr; gap: 7px 14px; font-size: 14px; line-height: 1.5; }
+.pedido-dados dt { color: #aaa; }
+.pedido-dados dd { margin: 0; color: #eee; overflow-wrap: anywhere; }
+.pedido-tabela-wrapper { overflow-x: auto; }
+.pedido-itens { width: 100%; border-collapse: collapse; text-align: left; min-width: 420px; margin-bottom: 15px; }
+.pedido-itens caption { text-align: left; padding: 8px 0; color: #eee; font-weight: 600; }
+.pedido-itens th, .pedido-itens td { border-bottom: 1px solid #333; padding: 10px 8px; font-size: 13px; }
+.pedido-itens th { color: #aaa; }
+.pedido-card .pedido-fiscal { color: #f1d5a0; }
+.pedido-acoes { margin-top: 16px; padding-top: 16px; border-top: 1px solid #333; }
+.pedido-acoes .btn { flex-shrink: 0; }
+.pedidos-paginacao { justify-content: center; margin-top: 20px; color: #bbb; font-size: 14px; }
+.pedidos-admin button:disabled { opacity: .45; cursor: default; }
+.pedidos-admin :focus-visible, .admin-login-box :focus-visible { outline: 2px solid var(--gold-light); outline-offset: 4px; }
+@media (max-width: 720px) {
+    .pedidos-admin { padding: 16px; }
+    .pedidos-cabecalho, .pedido-resumo, .pedido-acoes { align-items: flex-start; flex-direction: column; gap: 12px; }
+    .pedido-valor { text-align: left; }
+    .pedido-dados { grid-template-columns: 1fr; gap: 12px; }
+    .pedido-card { padding: 15px; }
+    .pedidos-paginacao { gap: 12px; }
+    .pedidos-paginacao .btn { padding: 10px 12px; }
+}

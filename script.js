@@ -1,315 +1,213 @@
-/* ================= PRODUTOS ================= */
+'use strict';
+const CATEGORY_EMOJI = {botas:'👢', roupas:'👕', chapeus:'🤠', acessorios:'🤎'};
+let productsById = new Map();
+let sizesById = new Map();
+let cart = [];
+let activeCustomerId = null;
+let loadingRevision = 0;
+let checkoutBusy = false;
+let activeCategory = 'todos';
+let pendingOrderKey = null;
+const $ = id => document.getElementById(id);
+const escapeHTML = JKUtils.escapeHTML;
+const money = JKUtils.money;
 
-// Emoji de fallback caso o produto não tenha imagem cadastrada
-const CATEGORY_EMOJI = {
-    botas: "👢",
-    roupas: "👕",
-    chapeus: "🤠",
-    acessorios: "🤎"
-};
-
+function readStorage(key, fallback) {
+    try { return JSON.parse(sessionStorage.getItem(key)) ?? fallback; } catch { return fallback; }
+}
+function writeStorage(key, value) {
+    try { sessionStorage.setItem(key, JSON.stringify(value)); } catch { /* Navegação continua sem persistência. */ }
+}
+function cartKey() { return 'jk_cart:' + activeCustomerId; }
+function saveCart() {
+    if (activeCustomerId) writeStorage(cartKey(), cart);
+}
+function availableStock(id, size) {
+    const sizes = sizesById.get(id) || [];
+    if (sizes.length) return Number(sizes.find(item => item.tamanho === size)?.estoque || 0);
+    return Number(productsById.get(id)?.estoque || 0);
+}
 async function loadProducts() {
-    const grid = document.getElementById("productsGrid");
-
-    const { data: produtos, error } = await supabaseClient
-        .from("produtos")
-        .select("*")
-        .order("criado_em");
-
-    if (error) {
-        console.error("Erro ao buscar produtos:", error);
-        grid.innerHTML = `
-            <p style="color:#e55;text-align:center;grid-column:1/-1;padding:50px 0">
-                Não foi possível carregar os produtos. Tente novamente mais tarde.
-            </p>
-        `;
-        return;
+    const customerId = JKAuth.customer?.id;
+    if (!customerId) return;
+    const request = ++loadingRevision;
+    $('productsGrid').textContent = 'Carregando produtos…';
+    try {
+        const [productsResult, sizesResult] = await Promise.all([
+            supabaseClient.from('produtos').select('*').order('criado_em'),
+            supabaseClient.from('produto_tamanhos').select('produto_id,tamanho,estoque').order('tamanho')
+        ]);
+        if (request !== loadingRevision || JKAuth.customer?.id !== customerId) return;
+        if (productsResult.error || sizesResult.error) throw new Error('Catálogo indisponível');
+        productsById = new Map((productsResult.data || []).map(item => [String(item.id), item]));
+        sizesById = new Map();
+        for (const size of sizesResult.data || []) {
+            const id = String(size.produto_id);
+            if (!sizesById.has(id)) sizesById.set(id, []);
+            sizesById.get(id).push(size);
+        }
+        if (activeCustomerId !== customerId) {
+            activeCustomerId = customerId;
+            const saved = readStorage(cartKey(), []);
+            cart = Array.isArray(saved) ? saved.filter(item => item && typeof item.produto_id === 'string' && (item.tamanho === null || typeof item.tamanho === 'string') && Number.isInteger(item.quantidade) && item.quantidade > 0 && item.quantidade <= 99) : [];
+        }
+        cart = cart.filter(item => productsById.has(item.produto_id));
+        saveCart();
+        $('productsGrid').innerHTML = [...productsById.values()].map(renderProductCard).join('') || '<p>Nenhum produto disponível no momento.</p>';
+        applyFilters();
+        updateCart();
+    } catch {
+        if (request === loadingRevision) $('productsGrid').innerHTML = '<p>Não foi possível carregar os produtos. <button class="text-action" type="button" onclick="loadProducts()">Tentar novamente</button></p>';
     }
-
-    if (!produtos || produtos.length === 0) {
-        grid.innerHTML = `
-            <p style="color:#666;text-align:center;grid-column:1/-1;padding:50px 0">
-                Nenhum produto disponível no momento.
-            </p>
-        `;
-        return;
-    }
-
-    grid.innerHTML = produtos.map(renderProductCard).join("");
 }
-
-function renderProductCard(produto) {
-    const emoji = CATEGORY_EMOJI[produto.categoria] || "🛍️";
-    
-    // Renderiza imagem cadastrada ou o emoji placeholder
-    const imageContent = produto.imagem_url 
-        ? `<img src="${produto.imagem_url}" alt="${produto.nome}">`
-        : `<div class="product-placeholder">${emoji}</div>`;
-
-    const precoFormatado = produto.preco.toFixed(2).replace(".", ",");
-    const precoAntigoHtml = produto.preco_antigo
-        ? `<span class="old-price">R$ ${produto.preco_antigo.toFixed(2).replace(".", ",")}</span>`
-        : "";
-
-    const badgeHtml = produto.badge
-        ? `<span class="badge">${produto.badge}</span>`
-        : "";
-
-    const esgotado = produto.estoque <= 0;
-
-    return `
-        <article
-            class="product"
-            data-category="${produto.categoria}"
-            data-name="${produto.nome}"
-        >
-            <div class="product-image">
-                ${imageContent}
-                ${badgeHtml}
-                <button class="favorite" onclick="favorite(this)">♡</button>
-            </div>
-
-            <div class="product-info">
-                <span class="product-category">${produto.categoria}</span>
-                <h3>${produto.nome}</h3>
-                <div class="rating">★★★★★</div>
-                <div class="price">
-                    R$ ${precoFormatado}
-                    ${precoAntigoHtml}
-                </div>
-                <button
-                    class="add-cart"
-                    onclick="addToCart('${produto.id}', '${produto.nome}', ${produto.preco})"
-                    ${esgotado ? "disabled style=\"opacity:.4;cursor:not-allowed\"" : ""}
-                >
-                    ${esgotado ? "Esgotado" : "Adicionar ao carrinho"}
-                </button>
-            </div>
-        </article>
-    `;
+function safeImage(value) {
+    if (!value) return '';
+    try { const url = new URL(value, location.href); return ['https:', 'http:'].includes(url.protocol) ? url.href : ''; } catch { return ''; }
 }
-
-
-/* ================= CARRINHO (PERSISTENTE) ================= */
-
-let cart = JSON.parse(localStorage.getItem("jk_cart")) || [];
-
-function saveCartToLocalStorage() {
-    localStorage.setItem("jk_cart", JSON.stringify(cart));
+function renderProductCard(product) {
+    const id = String(product.id);
+    const sizes = sizesById.get(id) || [];
+    const available = sizes.length ? sizes.some(size => Number(size.estoque) > 0) : Number(product.estoque) > 0;
+    const imageURL = safeImage(product.imagem_url);
+    const image = imageURL ? `<img src="${escapeHTML(imageURL)}" alt="${escapeHTML(product.nome)}" loading="lazy">` : `<div class="product-placeholder">${CATEGORY_EMOJI[product.categoria] || '🛍️'}</div>`;
+    const sizeInput = sizes.length ? `<label class="product-size-label" for="size-${escapeHTML(id)}">Tamanho</label><select class="product-size" id="size-${escapeHTML(id)}"><option value="">Selecione o tamanho</option>${sizes.map(size => `<option value="${escapeHTML(size.tamanho)}" ${Number(size.estoque) > 0 ? '' : 'disabled'}>${escapeHTML(size.tamanho)}${Number(size.estoque) > 0 ? '' : ' — esgotado'}</option>`).join('')}</select>` : '';
+    return `<article class="product" data-category="${escapeHTML(product.categoria)}" data-name="${escapeHTML(product.nome)}">
+        <div class="product-image">${image}${product.badge ? `<span class="badge">${escapeHTML(product.badge)}</span>` : ''}<button class="favorite" type="button" aria-label="Favoritar produto" onclick="favorite(this)">♡</button></div>
+        <div class="product-info"><span class="product-category">${escapeHTML(product.categoria)}</span><h3>${escapeHTML(product.nome)}</h3><div class="rating">★★★★★</div><div class="price">${money(product.preco)} ${product.preco_antigo ? `<span class="old-price">${money(product.preco_antigo)}</span>` : ''}</div>${sizeInput}
+        <button class="add-cart" type="button" data-id="${escapeHTML(id)}" onclick="addToCart(this.dataset.id)" ${available ? '' : 'disabled'}>${available ? 'Adicionar ao carrinho' : 'Esgotado'}</button></div></article>`;
 }
-
-function addToCart(id, name, price) {
-    const existing = cart.find(item => item.id === id);
-
-    if (existing) {
-        existing.quantity++;
-    } else {
-        cart.push({
-            id: id,
-            name: name,
-            price: price,
-            quantity: 1
-        });
-    }
-
-    saveCartToLocalStorage();
-    updateCart();
-    openCart();
+function addToCart(id) {
+    if (!JKAuth.customer || !productsById.has(id) || checkoutBusy) return;
+    const sizes = sizesById.get(id) || [];
+    const size = sizes.length ? $('size-' + id)?.value : null;
+    if (sizes.length && !size) { alert('Selecione o tamanho do produto.'); return; }
+    const existing = cart.find(item => item.produto_id === id && item.tamanho === size);
+    const quantity = (existing?.quantidade || 0) + 1;
+    if (quantity > 99 || quantity > availableStock(id, size)) { alert('Quantidade indisponível neste tamanho.'); return; }
+    if (existing) existing.quantidade = quantity;
+    else cart.push({produto_id: id, tamanho: size, quantidade: 1});
+    pendingOrderKey = null;
+    saveCart(); updateCart(); openCart();
 }
-
 function updateCart() {
-    const container = document.getElementById("cartItems");
-    const count = document.getElementById("cart-count");
-    const totalElement = document.getElementById("cartTotal");
-
-    let total = 0;
     let quantity = 0;
-
-    if (cart.length === 0) {
-        container.innerHTML = `
-            <p style="color:#666;text-align:center;padding:50px 0">
-                Seu carrinho está vazio.
-            </p>
-        `;
-    } else {
-        container.innerHTML = cart.map((item, index) => {
-            total += item.price * item.quantity;
-            quantity += item.quantity;
-
-            return `
-                <div class="cart-item">
-                    <div class="cart-item-image">🛍️</div>
-                    <div class="cart-item-info">
-                        <h4>${item.name}</h4>
-                        <p>
-                            ${item.quantity}x R$ ${item.price.toFixed(2).replace(".", ",")}
-                        </p>
-                    </div>
-                    <button class="remove-item" onclick="removeItem(${index})">✕</button>
-                </div>
-            `;
-        }).join("");
-    }
-
-    count.textContent = quantity;
-    totalElement.textContent = "R$ " + total.toFixed(2).replace(".", ",");
+    let total = 0;
+    $('cartItems').innerHTML = cart.map((item, index) => {
+        const product = productsById.get(item.produto_id);
+        if (!product) return '';
+        total += Number(product.preco) * item.quantidade;
+        quantity += item.quantidade;
+        return `<div class="cart-item"><div class="cart-item-image">${CATEGORY_EMOJI[product.categoria] || '🛍️'}</div><div class="cart-item-info"><h4>${escapeHTML(product.nome)}</h4><p>${item.tamanho ? 'Tamanho ' + escapeHTML(item.tamanho) + ' · ' : ''}${item.quantidade}x ${money(product.preco)}</p></div><button class="remove-item" type="button" aria-label="Remover ${escapeHTML(product.nome)}" onclick="removeItem(${index})" ${checkoutBusy ? 'disabled' : ''}>✕</button></div>`;
+    }).join('') || '<p class="checkout-note">Seu carrinho está vazio.</p>';
+    $('cart-count').textContent = quantity;
+    $('cartTotal').textContent = money(total);
+    $('checkoutButton').disabled = checkoutBusy || cart.length === 0;
 }
-
 function removeItem(index) {
-    cart.splice(index, 1);
-    saveCartToLocalStorage();
-    updateCart();
+    if (checkoutBusy) return;
+    cart.splice(index, 1); pendingOrderKey = null; saveCart(); updateCart();
 }
-
-function openCart() {
-    document.getElementById("cartOverlay").classList.add("active");
-    document.body.style.overflow = "hidden";
-}
-
-function closeCart() {
-    document.getElementById("cartOverlay").classList.remove("active");
-    document.body.style.overflow = "";
-}
-
-function closeCartOutside(event) {
-    if (event.target.id === "cartOverlay") {
-        closeCart();
-    }
-}
-
-
-/* ================= WHATSAPP ================= */
-
+function openCart() { if (!JKAuth.customer) return; $('cartOverlay').classList.add('active'); document.body.style.overflow = 'hidden'; }
+function closeCart() { $('cartOverlay').classList.remove('active'); document.body.style.overflow = ''; }
+function closeCartOutside(event) { if (event.target.id === 'cartOverlay') closeCart(); }
 async function checkoutWhatsApp() {
-    if (cart.length === 0) {
-        alert("Seu carrinho está vazio!");
-        return;
-    }
-
-    const baixasDeEstoque = cart.map(item =>
-        supabaseClient.rpc("decrementar_estoque", {
-            produto_id: item.id,
-            quantidade: item.quantity
-        })
-    );
-
-    const resultados = await Promise.all(baixasDeEstoque);
-    const algumErro = resultados.some(r => r.error);
-
-    if (algumErro) {
-        console.error("Erro ao abater estoque:", resultados);
-        alert("Não foi possível confirmar o pedido agora. Tente novamente.");
-        return;
-    }
-
-    let message = "Olá! Quero fazer um pedido na JK Botinas:%0A%0A";
-
-    cart.forEach(item => {
-        message += `• ${item.name} - ${item.quantity}x - R$ ${(item.price * item.quantity).toFixed(2).replace(".", ",")}%0A`;
-    });
-
-    const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
-    message += `%0A*Total: R$ ${total.toFixed(2).replace(".", ",")}*`;
-
-    // INSIRA O NÚMERO REAL DA LOJA ABAIXO (ex: 5511999999999)
-    const phone = "+5561992227501";
-
-    window.open(`https://wa.me/${phone}?text=${message}`, "_blank");
-
-    // Limpa a variável e o localStorage
-    cart = [];
-    saveCartToLocalStorage();
-    updateCart();
+    if (!cart.length || checkoutBusy) return;
+    try { await JKAuth.requireCustomer(); } catch { return; }
+    if (!cart.length) return;
     closeCart();
-    loadProducts();
+    $('addressForm').hidden = false;
+    $('orderSuccess').hidden = true;
+    $('checkoutMessage').textContent = '';
+    $('addressDialog').showModal();
 }
-
-
-/* ================= FAVORITOS ================= */
-
-function favorite(button) {
-    button.classList.toggle("active");
-    button.innerHTML = button.classList.contains("active") ? "♥" : "♡";
+function whatsappURL(order) { return 'https://wa.me/5561992227501?text=' + encodeURIComponent(JKUtils.whatsappMessage(order)); }
+async function submitOrder(event) {
+    event.preventDefault();
+    if (checkoutBusy || !cart.length) return;
+    const form = event.currentTarget;
+    if (!form.reportValidity()) return;
+    let address;
+    try { address = JKUtils.validateAddress(Object.fromEntries(new FormData(form))); }
+    catch (error) { $('checkoutMessage').textContent = error.message; return; }
+    checkoutBusy = true; updateCart();
+    const button = form.querySelector('[type="submit"]');
+    button.disabled = true;
+    button.textContent = 'Registrando…';
+    const owner = JKAuth.customer?.id;
+    try {
+        const customer = await JKAuth.requireCustomer();
+        if (owner !== customer.id) throw new Error('Sessão alterada');
+        const items = cart.map(item => ({...item}));
+        // Only a hash and random request ID are persisted; no CPF or address in storage.
+        const bytes = new TextEncoder().encode(JSON.stringify({items, address}));
+        const fingerprint = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)), b => b.toString(16).padStart(2, '0')).join('');
+        const keyName = 'jk_pending:' + owner;
+        const saved = readStorage(keyName, null);
+        if (!pendingOrderKey || pendingOrderKey.fingerprint !== fingerprint) pendingOrderKey = saved?.fingerprint === fingerprint ? saved : {fingerprint, id: crypto.randomUUID()};
+        writeStorage(keyName, pendingOrderKey);
+        const {data: order, error} = await supabaseClient.rpc('jk_criar_pedido', {p_itens: items, p_endereco: address, p_idempotencia: pendingOrderKey.id});
+        if (JKAuth.customer?.id !== owner) return;
+        if (error) {
+            if (error.code === 'P0001') {
+                const known = String(error.message || '');
+                if (/estoque|tamanho|produto|quantidade/i.test(known)) throw new Error('Algum produto ou tamanho não está mais disponível. Atualize o carrinho e tente novamente.');
+            }
+            throw new Error('Não foi possível salvar o pedido. Seu carrinho foi mantido. Tente novamente.');
+        }
+        if (!order?.id || !Array.isArray(order.itens)) throw new Error('Não foi possível confirmar o registro. Tente novamente.');
+        $('orderSuccessText').textContent = `Pedido ${order.id}. Produtos: ${money(order.total)}. Aguardando confirmação da loja.`;
+        $('orderWhatsapp').href = whatsappURL(order);
+        $('addressForm').hidden = true;
+        $('orderSuccess').hidden = false;
+        form.reset();
+        cart = []; pendingOrderKey = null; saveCart();
+        try { sessionStorage.removeItem(keyName); } catch { /* Sem persistência. */ }
+    } catch (error) {
+        if (JKAuth.customer?.id === owner) $('checkoutMessage').textContent = error.message || 'Não foi possível registrar o pedido. Tente novamente.';
+    } finally { checkoutBusy = false; button.disabled = false; button.textContent = 'Registrar pedido'; updateCart(); }
 }
-
-
-/* ================= FILTROS ================= */
-
+async function showCustomerOrders() {
+    const owner = JKAuth.customer?.id;
+    if (!owner) return;
+    $('customerOrders').textContent = 'Carregando seus pedidos…';
+    $('ordersDialog').showModal();
+    try {
+        const {data, error} = await supabaseClient.from('jk_pedidos').select('id,itens,total,status,fiscal_status,criado_em').eq('cliente_id', owner).order('criado_em', {ascending: false}).limit(30);
+        if (JKAuth.customer?.id !== owner) return;
+        if (error) throw error;
+        $('customerOrders').innerHTML = (data || []).map(order => `<article class="order-card"><p class="order-id">Pedido ${escapeHTML(order.id)}</p><p>${new Date(order.criado_em).toLocaleDateString('pt-BR')} · ${order.status === 'confirmado' ? 'Venda confirmada pela loja' : 'Aguardando confirmação'}</p>${order.itens.map(item => `<p>${item.quantidade}x ${escapeHTML(item.nome)}${item.tamanho ? ' · ' + escapeHTML(item.tamanho) : ''}</p>`).join('')}<p>Produtos: ${money(order.total)}</p><p>Nota fiscal: emissão ainda não configurada pela loja.</p><a class="btn btn-outline" target="_blank" rel="noopener noreferrer" href="${escapeHTML(whatsappURL(order))}">Falar sobre este pedido</a></article>`).join('') || '<p>Você ainda não tem pedidos.</p>';
+    } catch { if (JKAuth.customer?.id === owner) $('customerOrders').textContent = 'Não foi possível carregar seus pedidos. Feche esta janela e tente novamente.'; }
+}
+function favorite(button) { button.classList.toggle('active'); button.textContent = button.classList.contains('active') ? '♥' : '♡'; }
 function filterCategory(category) {
-    const products = document.querySelectorAll(".product");
-    const buttons = document.querySelectorAll(".filter-btn");
-
-    buttons.forEach(button => {
-        button.classList.remove("active");
-        if (
-            button.textContent
-                .toLowerCase()
-                .includes(
-                    category === "todos"
-                        ? "todos"
-                        : category === "chapeus"
-                            ? "chapéus"
-                            : category
-                )
-        ) {
-            button.classList.add("active");
-        }
-    });
-
-    products.forEach(product => {
-        if (category === "todos" || product.dataset.category === category) {
-            product.style.display = "";
-        } else {
-            product.style.display = "none";
-        }
-    });
-
-    document.getElementById("produtos").scrollIntoView({ behavior: "smooth" });
+    activeCategory = category;
+    const categories = ['todos', 'botas', 'roupas', 'chapeus', 'acessorios'];
+    document.querySelectorAll('.filter-btn').forEach((button, index) => button.classList.toggle('active', categories[index] === category));
+    applyFilters(); $('produtos').scrollIntoView({behavior: 'smooth'});
 }
-
-
-/* ================= BUSCA ================= */
-
-function searchProducts() {
-    const search = document.getElementById("search").value.toLowerCase();
-    const products = document.querySelectorAll(".product");
-
-    products.forEach(product => {
-        const name = product.dataset.name.toLowerCase();
-        product.style.display = name.includes(search) ? "" : "none";
-    });
+function applyFilters() {
+    const search = $('search').value.trim().toLocaleLowerCase('pt-BR');
+    document.querySelectorAll('.product').forEach(product => { product.hidden = !(activeCategory === 'todos' || product.dataset.category === activeCategory) || !product.dataset.name.toLocaleLowerCase('pt-BR').includes(search); });
 }
-
-function focusSearch() {
-    document.getElementById("produtos").scrollIntoView({ behavior: "smooth" });
-    setTimeout(() => {
-        document.getElementById("search").focus();
-    }, 600);
-}
-
-
-/* ================= MENU MOBILE ================= */
-
+function searchProducts() { applyFilters(); }
+function focusSearch() { $('produtos').scrollIntoView({behavior:'smooth'}); $('search').focus({preventScroll:true}); }
 function toggleMobileMenu() {
-    const nav = document.querySelector("nav");
-
-    if (nav.style.display === "flex") {
-        nav.style.display = "";
-    } else {
-        nav.style.display = "flex";
-        nav.style.position = "absolute";
-        nav.style.top = "85px";
-        nav.style.left = "0";
-        nav.style.width = "100%";
-        nav.style.padding = "25px";
-        nav.style.background = "#080808";
-        nav.style.flexDirection = "column";
-        nav.style.borderBottom = "1px solid #392b12";
-    }
+    const nav = document.querySelector('#storefront nav');
+    if (nav.style.display === 'flex') nav.removeAttribute('style');
+    else Object.assign(nav.style, {display:'flex', position:'absolute', top:'100%', left:'0', width:'100%', padding:'25px', background:'#080808', flexDirection:'column', borderBottom:'1px solid #392b12'});
 }
-
-
-/* ================= INICIALIZAÇÃO ================= */
-
+function clearCustomerState() {
+    ++loadingRevision;
+    if (activeCustomerId) { try { sessionStorage.removeItem(cartKey()); sessionStorage.removeItem('jk_pending:' + activeCustomerId); } catch { /* Storage unavailable. */ } }
+    activeCustomerId = null; cart = []; productsById.clear(); sizesById.clear(); pendingOrderKey = null;
+    $('productsGrid').textContent = ''; $('customerOrders').textContent = ''; $('orderSuccessText').textContent = ''; $('orderWhatsapp').removeAttribute('href');
+    $('addressForm').reset(); closeCart(); updateCart();
+}
+$('addressForm').addEventListener('submit', submitOrder);
+$('customerOrdersButton').addEventListener('click', showCustomerOrders);
+document.querySelectorAll('[data-close-dialog]').forEach(button => button.addEventListener('click', () => $(button.dataset.closeDialog).close()));
+document.querySelector('#addressForm select[name="uf"]').insertAdjacentHTML('beforeend', JKUtils.states.map(state => `<option>${state}</option>`).join(''));
+window.addEventListener('jk:locked', clearCustomerState);
+window.addEventListener('jk:ready', event => { if (event.detail.changed || activeCustomerId !== JKAuth.customer?.id) loadProducts(); });
+JKAuth.ready.then(() => { if (JKAuth.customer && activeCustomerId !== JKAuth.customer.id) loadProducts(); });
 updateCart();
-loadProducts();

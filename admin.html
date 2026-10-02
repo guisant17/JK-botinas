@@ -7,6 +7,7 @@
     <title>JK BOTINAS | Painel Administrativo</title>
 
     <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="admin-orders.css">
 </head>
 
 <body>
@@ -15,31 +16,38 @@
 
 <div class="admin-login-screen" id="loginScreen">
 
-    <div class="admin-login-box">
+    <form class="admin-login-box" onsubmit="event.preventDefault(); fazerLogin();">
 
         <h2>Painel Administrativo</h2>
 
         <p class="admin-login-sub">JK Botinas</p>
 
+        <label for="loginEmail">E-mail da administração</label>
         <input
             type="email"
             id="loginEmail"
             placeholder="E-mail"
+            autocomplete="username"
+            required
         >
 
+        <label for="loginPassword">Senha</label>
         <input
             type="password"
             id="loginPassword"
             placeholder="Senha"
+            autocomplete="current-password"
+            required
         >
 
-        <button class="btn" onclick="fazerLogin()">
+        <button class="btn" type="submit">
             Entrar
         </button>
 
-        <p class="admin-login-error" id="loginError"></p>
+        <p class="admin-login-error" id="loginError" role="alert"></p>
+        <a class="admin-voltar-loja" href="index.html">Voltar à loja</a>
 
-    </div>
+    </form>
 
 </div>
 
@@ -60,6 +68,32 @@
 
 
     <main class="admin-content">
+        <section class="pedidos-admin" aria-labelledby="pedidosTitulo">
+            <div class="pedidos-cabecalho">
+                <div>
+                    <p class="pedidos-sobretitulo">Atendimento</p>
+                    <h2 id="pedidosTitulo">Pedidos dos clientes</h2>
+                    <p>Confira os dados e confirme a venda após acertar o pagamento com o cliente.</p>
+                </div>
+                <button class="btn btn-outline" type="button" onclick="carregarPedidosAdmin()">Atualizar pedidos</button>
+            </div>
+            <p class="pedidos-aviso-fiscal">Emissor fiscal ainda não configurado. Confirmar a venda atualiza o estoque; não cobra o cliente nem emite nota fiscal.</p>
+            <div class="pedidos-filtros">
+                <label for="filtroPedidos">Exibir</label>
+                <select id="filtroPedidos" onchange="paginaPedidos = 0; carregarPedidosAdmin();">
+                    <option value="">Todos os pedidos</option>
+                    <option value="aguardando_confirmacao">Aguardando confirmação</option>
+                    <option value="confirmado">Confirmados</option>
+                </select>
+            </div>
+            <p id="pedidosMensagem" class="pedidos-mensagem" role="status" aria-live="polite"></p>
+            <div id="listaPedidosAdmin" class="pedidos-lista"></div>
+            <div class="pedidos-paginacao">
+                <button id="pedidosAnterior" class="btn btn-outline" type="button" onclick="mudarPaginaPedidos(-1)" disabled>Anterior</button>
+                <span id="pedidosPagina">Página 1</span>
+                <button id="pedidosProxima" class="btn btn-outline" type="button" onclick="mudarPaginaPedidos(1)" disabled>Próxima</button>
+            </div>
+        </section>
  <!-- =========================================================
      DASHBOARD DE ESTOQUE
      ========================================================= -->

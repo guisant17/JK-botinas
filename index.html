@@ -9,9 +9,72 @@
     <meta name="description" content="JK Botinas - Moda country, roupas, botas, calçados e acessórios.">
 
     <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="auth.css">
+    <link rel="stylesheet" href="interactions.css">
 </head>
 
 <body>
+
+<main id="authScreen" class="auth-shell">
+    <section class="auth-story" aria-label="JK Botinas">
+        <a class="auth-wordmark" href="index.html">JK BOTINAS</a>
+        <div class="auth-eyebrow">Moda country • Estilo • Tradição</div>
+        <h1>Seu estilo.<br><span>Sua conta.</span></h1>
+        <p>Entre para conhecer a coleção e fazer seu pedido com seus dados sempre à mão.</p>
+        <div class="auth-points"><span>01 &nbsp; Crie e confirme seu acesso por e-mail</span><span>02 &nbsp; Complete seu nome, CPF e telefone</span><span>03 &nbsp; Escolha seus produtos e acompanhe o pedido</span></div>
+    </section>
+    <section class="auth-main">
+        <div class="auth-card">
+            <p id="authLoading" role="status">Verificando seu acesso…</p>
+            <div id="authContent" hidden>
+                <h2 id="authTitle">Bem-vindo à JK Botinas</h2>
+                <p id="authIntro" class="auth-intro">Entre na sua conta para acessar a loja.</p>
+                <div id="authTabs" class="auth-tabs" aria-label="Acesso à conta">
+                    <button type="button" id="showLogin" aria-pressed="true">Entrar</button>
+                    <button type="button" id="showRegister" aria-pressed="false">Criar conta</button>
+                </div>
+                <div id="authMessage" class="auth-message" role="status" aria-live="polite"></div>
+                <form id="loginForm" class="customer-form">
+                    <label>E-mail<input name="email" type="email" autocomplete="username" required maxlength="254"></label>
+                    <label>Senha<input name="password" type="password" autocomplete="current-password" required></label>
+                    <button class="btn" type="submit">Entrar na loja</button>
+                    <button id="showReset" class="text-action" type="button">Esqueci minha senha</button>
+                </form>
+                <form id="registerForm" class="customer-form" hidden>
+                    <label>E-mail<input name="email" type="email" autocomplete="email" required maxlength="254"></label>
+                    <label>Crie uma senha<input name="password" type="password" autocomplete="new-password" minlength="8" required aria-describedby="passwordHint"></label>
+                    <small id="passwordHint" class="auth-note">Use pelo menos 8 caracteres.</small>
+                    <label>Confirme a senha<input name="confirmPassword" type="password" autocomplete="new-password" minlength="8" required></label>
+                    <p class="auth-note">Depois de confirmar o e-mail, informe nome completo, CPF e telefone para concluir seu cadastro.</p>
+                    <button class="btn" type="submit">Criar meu acesso</button>
+                </form>
+                <form id="resetForm" class="customer-form" hidden>
+                    <label>E-mail da sua conta<input name="email" type="email" autocomplete="email" required maxlength="254"></label>
+                    <button class="btn" type="submit">Enviar link de recuperação</button>
+                    <button type="button" class="text-action" data-auth-back>Voltar para entrar</button>
+                </form>
+                <form id="passwordForm" class="customer-form" hidden>
+                    <label>Nova senha<input name="password" type="password" autocomplete="new-password" minlength="8" required></label>
+                    <label>Confirme a nova senha<input name="confirmPassword" type="password" autocomplete="new-password" minlength="8" required></label>
+                    <button class="btn" type="submit">Salvar nova senha</button>
+                </form>
+                <form id="profileForm" class="customer-form" hidden>
+                    <label>E-mail confirmado<input id="profileEmail" type="email" readonly></label>
+                    <label>Nome completo<input name="nome" autocomplete="name" required maxlength="150"></label>
+                    <label>CPF<input name="cpf" inputmode="numeric" placeholder="000.000.000-00" required maxlength="14"></label>
+                    <label>Telefone com DDD<input name="telefone" type="tel" autocomplete="tel" placeholder="(61) 99999-9999" required maxlength="20"></label>
+                    <p class="auth-note">Usamos esses dados para identificar seus pedidos, prestar atendimento e preparar as informações fiscais. <a href="privacidade.html" target="_blank" rel="noopener">Saiba como seus dados são usados.</a></p>
+                    <button class="btn" type="submit">Salvar e entrar na loja</button>
+                    <button type="button" id="profileLogout" class="text-action">Sair desta conta</button>
+                </form>
+            </div>
+            <noscript><p>Ative o JavaScript no navegador para entrar na loja.</p></noscript>
+            <div class="auth-footer"><a href="privacidade.html">Privacidade</a><a href="admin.html">Acesso da equipe</a></div>
+        </div>
+    </section>
+</main>
+
+<div id="storefront" hidden>
 
 <!-- ================= HEADER ================= -->
 
@@ -34,6 +97,11 @@
         </nav>
 
   <div class="header-actions">
+
+    <div class="account-actions">
+        <button type="button" id="customerOrdersButton">Meus pedidos</button>
+        <button type="button" id="customerLogoutButton">Sair</button>
+    </div>
 
     <button class="icon-btn" onclick="focusSearch()">
         🔎
@@ -460,11 +528,11 @@ Personalidade, tradição e atitude em cada detalhe.
             <ul>
 
                 <li>
-                    <a href="#">WhatsApp</a>
+                    <a href="https://wa.me/5561992227501" target="_blank" rel="noopener noreferrer">WhatsApp</a>
                 </li>
 
                 <li>
-                    <a href="#">Instagram</a>
+                    <a href="https://www.instagram.com/jkbotinas/" target="_blank" rel="noopener noreferrer">Instagram</a>
                 </li>
 
                 <li>
@@ -485,7 +553,7 @@ Personalidade, tradição e atitude em cada detalhe.
             <h3>Contato</h3>
 
             <p>
-                📱 (00) 99999-9999
+                📱 (61) 99222-7501
             </p>
 
             <p>
@@ -563,10 +631,12 @@ Personalidade, tradição e atitude em cada detalhe.
 
             <button
                 class="btn whatsapp"
+                id="checkoutButton"
                 onclick="checkoutWhatsApp()"
             >
                 Finalizar pelo WhatsApp
             </button>
+            <p class="checkout-note">Seu pedido será registrado para confirmação da loja. Frete e pagamento serão combinados no atendimento.</p>
 
         </div>
 
@@ -575,9 +645,32 @@ Personalidade, tradição e atitude em cada detalhe.
 </div>
 
 
+</div>
+
+<dialog id="addressDialog" class="customer-dialog" aria-labelledby="addressTitle">
+    <div class="dialog-heading"><h2 id="addressTitle">Dados do pedido</h2><button type="button" data-close-dialog="addressDialog" aria-label="Fechar">×</button></div>
+    <p class="auth-intro">Informe o endereço do comprador para o pedido e os dados fiscais.</p>
+    <form id="addressForm" class="customer-form">
+        <label>CEP<input name="cep" inputmode="numeric" autocomplete="postal-code" maxlength="9" required></label>
+        <label>Rua / avenida<input name="logradouro" autocomplete="address-line1" maxlength="150" required></label>
+        <div class="form-columns"><label>Número<input name="numero" maxlength="150" required placeholder="Número ou S/N"></label><label>Complemento (opcional)<input name="complemento" autocomplete="address-line2" maxlength="150"></label></div>
+        <label>Bairro<input name="bairro" maxlength="150" required></label>
+        <div class="form-columns"><label>Cidade<input name="cidade" autocomplete="address-level2" maxlength="150" required></label><label>Estado<select name="uf" autocomplete="address-level1" required><option value="">Selecione</option></select></label></div>
+        <p id="checkoutMessage" class="auth-message" role="status" aria-live="polite"></p>
+        <button class="btn" type="submit">Registrar pedido</button>
+        <p class="auth-note">Registrar o pedido não confirma pagamento ou emissão de nota fiscal.</p>
+    </form>
+    <div id="orderSuccess" hidden><h3>Pedido registrado</h3><p id="orderSuccessText" class="auth-intro"></p><a id="orderWhatsapp" class="btn whatsapp" target="_blank" rel="noopener noreferrer">Continuar no WhatsApp</a><p class="checkout-note">Aguarde a confirmação da loja. Seu pedido também está em “Meus pedidos”.</p></div>
+</dialog>
+
+<dialog id="ordersDialog" class="customer-dialog" aria-labelledby="ordersTitle"><div class="dialog-heading"><h2 id="ordersTitle">Meus pedidos</h2><button type="button" data-close-dialog="ordersDialog" aria-label="Fechar">×</button></div><div id="customerOrders" aria-live="polite"></div></dialog>
+
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-config.js"></script>
+    <script src="customer-utils.js"></script>
+    <script src="auth.js"></script>
     <script src="script.js"></script>
+    <script src="interactions.js"></script>
 
 </body>
 </html>
