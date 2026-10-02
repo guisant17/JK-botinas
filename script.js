@@ -62,14 +62,51 @@ async function loadProducts() {
 }
 function safeImage(value) {
     if (!value) return '';
-    try { const url = new URL(value, location.href); return ['https:', 'http:'].includes(url.protocol) ? url.href : ''; } catch { return ''; }
+    try {
+        const source = String(value).trim();
+        const url = new URL(source, location.href);
+        // Permite URLs públicas e também caminhos locais da pasta Fotos.
+        return ['https:', 'http:', 'file:'].includes(url.protocol) ? url.href : '';
+    } catch { return ''; }
 }
+
+function localImageCandidates(productName) {
+    const name = String(productName || '').trim();
+    if (!name) return [];
+    return [
+        `Fotos/${name} 01.jpg`,
+        `Fotos/${name} 01.jpeg`,
+        `Fotos/${name}.jpg`,
+        `Fotos/${name}.jpeg`,
+        `Fotos/${name}.png`
+    ];
+}
+
+// Tenta as imagens locais quando a URL do Supabase está vazia ou indisponível.
+window.tryNextProductImage = function (image) {
+    let alternatives = [];
+    try { alternatives = JSON.parse(image.dataset.fallbacks || '[]'); } catch { alternatives = []; }
+    const next = alternatives.shift();
+    if (next) {
+        image.dataset.fallbacks = JSON.stringify(alternatives);
+        image.src = next;
+        return;
+    }
+    const placeholder = document.createElement('div');
+    placeholder.className = 'product-placeholder';
+    placeholder.textContent = '🛍️';
+    image.replaceWith(placeholder);
+};
+
 function renderProductCard(product) {
     const id = String(product.id);
     const sizes = sizesById.get(id) || [];
     const available = sizes.length ? sizes.some(size => Number(size.estoque) > 0) : Number(product.estoque) > 0;
     const imageURL = safeImage(product.imagem_url);
-    const image = imageURL ? `<img src="${escapeHTML(imageURL)}" alt="${escapeHTML(product.nome)}" loading="lazy">` : `<div class="product-placeholder">${CATEGORY_EMOJI[product.categoria] || '🛍️'}</div>`;
+    const imageCandidates = [...(imageURL ? [imageURL] : []), ...localImageCandidates(product.nome)];
+    const image = imageCandidates.length
+        ? `<img src="${escapeHTML(imageCandidates[0])}" data-fallbacks="${escapeHTML(JSON.stringify(imageCandidates.slice(1)))}" onerror="window.tryNextProductImage(this)" alt="${escapeHTML(product.nome)}" loading="lazy">`
+        : `<div class="product-placeholder">${CATEGORY_EMOJI[product.categoria] || '🛍️'}</div>`;
     const sizeInput = sizes.length ? `<label class="product-size-label" for="size-${escapeHTML(id)}">Tamanho</label><select class="product-size" id="size-${escapeHTML(id)}"><option value="">Selecione o tamanho</option>${sizes.map(size => `<option value="${escapeHTML(size.tamanho)}" ${Number(size.estoque) > 0 ? '' : 'disabled'}>${escapeHTML(size.tamanho)}${Number(size.estoque) > 0 ? '' : ' — esgotado'}</option>`).join('')}</select>` : '';
     return `<article class="product" data-category="${escapeHTML(product.categoria)}" data-name="${escapeHTML(product.nome)}">
         <div class="product-image">${image}${product.badge ? `<span class="badge">${escapeHTML(product.badge)}</span>` : ''}<button class="favorite" type="button" aria-label="Favoritar produto" onclick="favorite(this)">♡</button></div>
