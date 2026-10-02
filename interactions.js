@@ -18,6 +18,23 @@
     backToTop.textContent = '↑';
     document.body.appendChild(backToTop);
 
+    // Move o brilho do hero com o cursor sem afetar celulares ou o desempenho.
+    const pointerStorefront = document.querySelector('#storefront');
+    const pointerDevice = window.matchMedia('(hover: hover) and (pointer: fine)');
+    let pointerFrame = 0;
+    if (pointerStorefront && pointerDevice.matches && !reducedMotion) {
+        window.addEventListener('pointermove', event => {
+            if (pointerFrame) return;
+            pointerFrame = window.requestAnimationFrame(() => {
+                const x = (event.clientX / Math.max(window.innerWidth, 1)) * 100;
+                const y = (event.clientY / Math.max(window.innerHeight, 1)) * 100;
+                pointerStorefront.style.setProperty('--pointer-x', `${x}%`);
+                pointerStorefront.style.setProperty('--pointer-y', `${y}%`);
+                pointerFrame = 0;
+            });
+        }, {passive: true});
+    }
+
     const updateScrollUI = () => {
         const scrollable = document.documentElement.scrollHeight - window.innerHeight;
         const ratio = scrollable > 0 ? Math.min(window.scrollY / scrollable, 1) : 0;
