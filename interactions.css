@@ -44,8 +44,9 @@ header.is-scrolled .logo { height: 50px; }
 
 /* Entrada gradual das seções depois que a loja fica visível */
 #storefront.reveal-ready .reveal-on-scroll {
-    opacity: 0;
-    transform: translate3d(0, 24px, 0);
+    /* Conteúdo sempre visível: a animação nunca pode esconder produtos. */
+    opacity: 1;
+    transform: none;
     transition: opacity .65s var(--interaction-ease),
         transform .65s var(--interaction-ease);
     will-change: opacity, transform;
@@ -244,9 +245,7 @@ select:focus-visible {
         height: 42px;
     }
 
-    #storefront.reveal-ready .reveal-on-scroll {
-        transform: translate3d(0, 16px, 0);
-    }
+    #storefront.reveal-ready .reveal-on-scroll { transform: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
